@@ -2,42 +2,43 @@
 platform linux -- Python 3.11.17, pytest-9.1.1, pluggy-1.7.0 -- /opt/hostedtoolcache/Python/3.11.17/x64/bin/python3
 cachedir: .pytest_cache
 rootdir: /home/runner/work/Stalzone/Stalzone
-collecting ... collected 21 items
+collecting ... collected 22 items
 
 tests/test_arbitrage.py::test_fee_math PASSED                            [  4%]
 tests/test_arbitrage.py::test_median_and_percentile PASSED               [  9%]
-tests/test_arbitrage.py::test_summarize_sales PASSED                     [ 14%]
-tests/test_arbitrage.py::test_find_deals_filters_and_sorts PASSED        [ 19%]
-tests/test_catalog_config.py::test_load_catalog PASSED                   [ 23%]
-tests/test_catalog_config.py::test_dotenv_and_settings PASSED            [ 28%]
-tests/test_catalog_config.py::test_stalzone_env_fallback_names PASSED    [ 33%]
-tests/test_catalog_config.py::test_stalzone_config_blob PASSED           [ 38%]
-tests/test_craft.py::test_recipe_cost_and_missing PASSED                 [ 42%]
-tests/test_craft.py::test_evaluate_recipe_profit_with_fee PASSED         [ 47%]
-tests/test_craft.py::test_evaluate_recipe_none_on_missing_price PASSED   [ 52%]
-tests/test_craft.py::test_evaluate_all_sorted_best_first PASSED          [ 57%]
-tests/test_eapi.py::test_auth_headers_and_url PASSED                     [ 61%]
-tests/test_eapi.py::test_lots_all_paginates_and_stops PASSED             [ 66%]
-tests/test_eapi.py::test_retry_on_429_then_success PASSED                [ 71%]
-tests/test_eapi.py::test_http_error_wrapped PASSED                       [ 76%]
-tests/test_eapi.py::test_client_requires_credentials PASSED              [ 80%]
-tests/test_store.py::test_fingerprint_ignores_mutable_price PASSED       [ 85%]
+tests/test_arbitrage.py::test_summarize_sales PASSED                     [ 13%]
+tests/test_arbitrage.py::test_find_deals_filters_and_sorts PASSED        [ 18%]
+tests/test_catalog_config.py::test_load_catalog PASSED                   [ 22%]
+tests/test_catalog_config.py::test_dotenv_and_settings PASSED            [ 27%]
+tests/test_catalog_config.py::test_stalzone_env_fallback_names PASSED    [ 31%]
+tests/test_catalog_config.py::test_stalzone_config_blob PASSED           [ 36%]
+tests/test_craft.py::test_recipe_cost_and_missing PASSED                 [ 40%]
+tests/test_craft.py::test_evaluate_recipe_profit_with_fee PASSED         [ 45%]
+tests/test_craft.py::test_evaluate_recipe_none_on_missing_price PASSED   [ 50%]
+tests/test_craft.py::test_evaluate_all_sorted_best_first PASSED          [ 54%]
+tests/test_eapi.py::test_auth_headers_and_url PASSED                     [ 59%]
+tests/test_eapi.py::test_lots_all_paginates_and_stops PASSED             [ 63%]
+tests/test_eapi.py::test_retry_on_429_then_success PASSED                [ 68%]
+tests/test_eapi.py::test_http_error_wrapped PASSED                       [ 72%]
+tests/test_eapi.py::test_client_requires_credentials PASSED              [ 77%]
+tests/test_eapi.py::test_history_prices_listing_unwrap PASSED            [ 81%]
+tests/test_store.py::test_fingerprint_ignores_mutable_price PASSED       [ 86%]
 tests/test_store.py::test_extract_numbers_variants PASSED                [ 90%]
 tests/test_store.py::test_save_lots_dedupes PASSED                       [ 95%]
 tests/test_store.py::test_save_and_read_sales PASSED                     [100%]
 
-============================== 21 passed in 0.09s ==============================
+============================== 22 passed in 0.10s ==============================
 [smoke] clans EU: OK (dict)
 [smoke] lots y1q9: OK (5 rows, keys=['additional', 'amount', 'buyoutPrice', 'endTime', 'itemId', 'startPrice', 'startTime'])
-[smoke] history y1q9: OK (0 rows, keys=[])
+[smoke] history y1q9: OK (5 rows, keys=['additional', 'amount', 'price', 'time'])
 [smoke] report -> fetched_info/eapi_smoke.json
 secret visibility: STALCRAFT_*=false, STALZONE_*=false, BLOB=true
 [prod-smoke] lots y1q9@RU: OK (5 rows)
-[prod-smoke] history y1q9@RU: OK (0 rows)
+[prod-smoke] history y1q9@RU: OK (20 rows)
 [prod-smoke] lots g4lk0@RU: OK (5 rows)
-[prod-smoke] history g4lk0@RU: OK (0 rows)
+[prod-smoke] history g4lk0@RU: OK (20 rows)
 [prod-smoke] lots 96430@RU: OK (5 rows)
-[prod-smoke] history 96430@RU: OK (0 rows)
+[prod-smoke] history 96430@RU: OK (20 rows)
 [prod-smoke] lots g5np@RU: OK (5 rows)
-[prod-smoke] history g5np@RU: OK (0 rows)
+[prod-smoke] history g5np@RU: OK (20 rows)
 [prod-smoke] report -> fetched_info/eapi_prod.json
