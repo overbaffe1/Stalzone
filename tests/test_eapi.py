@@ -96,3 +96,22 @@ def test_client_requires_credentials():
     except ValueError:
         return
     raise AssertionError("expected ValueError")
+
+
+def test_history_prices_listing_unwrap(monkeypatch):
+    from szmarket.eapi import _as_list
+
+    # history -> {"prices": [...], "total": N} (NOT a bare list!)
+    payload = {"prices": [{"amount": 5, "price": 1000,
+                           "time": "2026-10-20T10:00:00Z"}],
+               "total": 1}
+    rows = _as_list(payload)
+    assert len(rows) == 1
+    assert rows[0]["price"] == 1000
+
+    def fake_urlopen(req, timeout=None):
+        return FakeResp(payload)
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    out = _client().history_all("g4lk0", limit=200, max_pages=1)
+    assert out == payload["prices"]

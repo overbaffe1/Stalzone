@@ -26,11 +26,16 @@ class EapiError(Exception):
 
 
 def _as_list(payload: Any) -> list[dict[str, Any]]:
-    """EAPI responses may be a bare list or an object wrapping one."""
+    """EAPI responses may be a bare list or a paginated listing object.
+
+    Known listing keys (per official reference + onejeuu/stalcraft-api):
+      lots -> {"lots": [...], "total": N}
+      history -> {"prices": [...], "total": N}
+    """
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict):
-        for key in ("lots", "items", "history", "results", "data"):
+        for key in ("lots", "prices", "items", "history", "results", "data"):
             if isinstance(payload.get(key), list):
                 return payload[key]
     return []
