@@ -31,3 +31,19 @@ def test_dotenv_and_settings(tmp_path, monkeypatch):
     # real env wins over .env
     monkeypatch.setenv("STALCRAFT_REGION", "NA")
     assert config.Settings.load(".env").region == "NA"
+
+
+def test_stalzone_env_fallback_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+    for k in ("STALCRAFT_CLIENT_ID", "STALCRAFT_CLIENT_SECRET", "STALCRAFT_REGION",
+              "STALZONE_CLIENT_ID", "STALZONE_CLIENT_SECRET", "STALZONE_REGION"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("STALZONE_CLIENT_ID", "4682")
+    monkeypatch.setenv("STALZONE_CLIENT_SECRET", "s3cr3t")
+    monkeypatch.setenv("STALZONE_REGION", "EU")
+    s = config.Settings.load(tmp_path / ".env-missing")
+    assert (s.client_id, s.client_secret, s.region) == ("4682", "s3cr3t", "EU")
+    assert s.has_credentials
+    # STALCRAFT_* wins when both are set
+    monkeypatch.setenv("STALCRAFT_REGION", "RU")
+    assert config.Settings.load(tmp_path / ".env-missing").region == "RU"

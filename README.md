@@ -49,7 +49,9 @@ Unit-тесты — на фикстурах, без сети. Живые про�
 - `tools/smoke_eapi.py` — публичное демо-API (без секретов, всегда в CI);
 - `tools/smoke_prod.py` — продакшн EAPI, только если в репозитории заданы
   Secrets `STALCRAFT_CLIENT_ID` / `STALCRAFT_CLIENT_SECRET` / `STALCRAFT_REGION`
-  (Settings → Secrets and variables → Actions). Без них — чистый SKIP.
+  (или `STALZONE_*` — оба имени поддерживаются)
+  (Settings → Secrets and variables → Actions → **Repository secrets**).
+  Без них — чистый SKIP.
 
 ## Структура
 

@@ -59,16 +59,25 @@ class Settings:
     min_gap: float = 1.0
     db_path: str = "data/market.db"
 
+    @staticmethod
+    def _env(*names: str, default: str = "") -> str:
+        """First non-empty value among alternative env var names."""
+        for n in names:
+            v = os.environ.get(n, "")
+            if v:
+                return v
+        return default
+
     @classmethod
     def load(cls, env_file: str | Path = ".env") -> "Settings":
         load_dotenv(env_file)
         return cls(
-            base_url=os.environ.get("EAPI_BASE_URL", PROD_BASE_URL).rstrip("/"),
-            client_id=os.environ.get("STALCRAFT_CLIENT_ID", ""),
-            client_secret=os.environ.get("STALCRAFT_CLIENT_SECRET", ""),
-            region=os.environ.get("STALCRAFT_REGION", "RU"),
-            min_gap=float(os.environ.get("EAPI_MIN_GAP", "1.0")),
-            db_path=os.environ.get("MARKET_DB", "data/market.db"),
+            base_url=cls._env("EAPI_BASE_URL", default=PROD_BASE_URL).rstrip("/"),
+            client_id=cls._env("STALCRAFT_CLIENT_ID", "STALZONE_CLIENT_ID"),
+            client_secret=cls._env("STALCRAFT_CLIENT_SECRET", "STALZONE_CLIENT_SECRET"),
+            region=cls._env("STALCRAFT_REGION", "STALZONE_REGION", default="RU"),
+            min_gap=float(cls._env("EAPI_MIN_GAP", default="1.0")),
+            db_path=cls._env("MARKET_DB", default="data/market.db"),
         )
 
     @property

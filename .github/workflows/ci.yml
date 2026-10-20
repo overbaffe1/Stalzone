@@ -45,11 +45,16 @@ jobs:
 
       - name: Live smoke test (production EAPI, needs Secrets)
         env:
-          STALCRAFT_CLIENT_ID: ${{ secrets.STALCRAFT_CLIENT_ID }}
-          STALCRAFT_CLIENT_SECRET: ${{ secrets.STALCRAFT_CLIENT_SECRET }}
-          STALCRAFT_REGION: ${{ secrets.STALCRAFT_REGION }}
+          # Accept both naming styles (repo Secrets, either one wins):
+          STALCRAFT_CLIENT_ID: ${{ secrets.STALCRAFT_CLIENT_ID || secrets.STALZONE_CLIENT_ID }}
+          STALCRAFT_CLIENT_SECRET: ${{ secrets.STALCRAFT_CLIENT_SECRET || secrets.STALZONE_CLIENT_SECRET }}
+          STALCRAFT_REGION: ${{ secrets.STALCRAFT_REGION || secrets.STALZONE_REGION }}
+          # Safe diagnostics: booleans only, never values:
+          _HAS_CRAFT_ID: ${{ secrets.STALCRAFT_CLIENT_ID != '' }}
+          _HAS_ZONE_ID: ${{ secrets.STALZONE_CLIENT_ID != '' }}
         run: |
           set -eo pipefail
+          echo "secret visibility: STALCRAFT_*=${_HAS_CRAFT_ID}, STALZONE_*=${_HAS_ZONE_ID}" | tee -a fetched_info/ci_run.log
           python3 tools/smoke_prod.py 2>&1 | tee -a fetched_info/ci_run.log
 
       - name: Commit and push results
