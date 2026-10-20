@@ -1,14 +1,16 @@
 # SZMarket — STALCRAFT auction analytics (EAPI + craft/arbitrage)
 
-Десктопный анализатор аукциона STALCRAFT: тянет цены из официального EAPI,
-копит историю в SQLite, считает **что выгодно скрафтить** и **что выгодно
-перепродать** с учётом комиссии аукциона 5%.
+Десктопный анализатор аукциона STALCRAFT (на русском): тянет цены из
+официального EAPI, копит историю в SQLite, считает **что выгодно скрафтить**,
+**что выгодно перепродать** и **какие лоты вот-вот кончатся** — всё с учётом
+комиссии аукциона 5%.
 
 - API: официальный STALCRAFT EAPI (`https://eapi.stalcraft.net`), secret-based auth
   (`Client-Id` + `Client-Secret`, без токенов).
-- База предметов: [EXBO-Studio/stalzone-database](https://github.com/EXBO-Studio/stalzone-database)
-  (названия/иконки по `itemId`, автообновление при патчах).
-- Рецепты: формат совместим с `konti1ks/stalzone-main` (`data/recipes.json`).
+- Предметы: [EXBO-Studio/stalzone-database](https://github.com/EXBO-Studio/stalzone-database)
+  (2364 названия + иконки, `data/catalog.json`; чего нет у EXBO — в `data/overrides.json`).
+- Рецепты: официальные `hideout_recipes.json` + `barter_recipes.json` EXBO
+  (373 крафта + 2396 бартеров, `data/recipes.json`, обновляется `tools/build_data.py`).
 - Только чтение: приложение никогда ничего не покупает/не выставляет.
 
 ## Быстрый старт (твой ПК, Windows)
@@ -61,14 +63,20 @@ Unit-тесты — на фикстурах, без сети. Живые про�
 szmarket/        ядро (только stdlib: urllib + sqlite3)
   config.py      .env/ENV настройки, константы (комиссия 5%)
   eapi.py        EAPI-клиент: lots/history, пагинация, 429/retry, паузы
-  store.py       SQLite: снапшоты лотов (SHA-дедуп) + история продаж
-  craft.py       экономика крафта: cost/revenue/profit/ROI
+  store.py       SQLite: снапшоты лотов (SHA-дедуп) + история продаж (thread-safe)
+  craft.py       экономика крафта/бартера: cost/revenue/profit/ROI (+ деньги)
   arbitrage.py   P25/median/P75, ликвидность, скоринг сделок
-  catalog.py     загрузчик stalzone-database (имена предметов)
-ui/app.py        десктоп MVP (CustomTkinter)
+  snipe.py       лоты с истекающим сроком: потолок цены и профит
+  catalog.py     каталог: имена, русский поиск, ручные подписи
+  icons.py       ленивая подгрузка иконок EXBO с дисковым кэшем
+ui/app.py        десктоп (CustomTkinter, русский, иконки)
 data/
-  recipes.json   рецепты убежища (стартер; заменить реальными!)
+  catalog.json   2364 предмета: русские имена + иконки (из EXBO)
+  recipes.json   373 крафта + 2396 бартеров (из EXBO)
+  watchlist.json твой список отслеживания (правится из окна)
+  overrides.json ручные названия для предметов вне базы EXBO
 tools/
+  build_data.py  пересборка catalog/recipes из свежих дампов EXBO
   smoke_eapi.py  живой smoke против демо-API (CI)
   smoke_prod.py  живой smoke против прод-API (CI, нужны Secrets)
 tests/           pytest, без сети

@@ -25,6 +25,9 @@ class Recipe:
     station: str = ""
     skill: str = ""
     skill_level: int = 0
+    money: float = 0.0  # extra cash cost (barter offers)
+    kind: str = ""  # "hideout" | "barter" | ""
+    category: str = ""
 
 
 def load_recipes(path: str | Path) -> list[Recipe]:
@@ -57,7 +60,7 @@ def recipe_cost(
     recipe: Recipe, buy_prices: dict[str, float]
 ) -> tuple[float, list[str]]:
     """Total material cost at given unit buy prices + missing item ids."""
-    cost = 0.0
+    cost = float(recipe.money or 0.0)
     missing: list[str] = []
     for item_id, count in recipe.requirements:
         if item_id not in buy_prices:
@@ -83,10 +86,12 @@ def evaluate_recipe(
     profit = revenue - cost
     return {
         "recipe_id": recipe.id,
+        "kind": recipe.kind,
         "product_id": recipe.product_id,
         "station": recipe.station,
         "units": units,
         "cost": cost,
+        "money": float(recipe.money or 0.0),
         "sell_price": sell_price,
         "revenue": revenue,
         "profit": profit,

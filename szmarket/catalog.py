@@ -37,3 +37,73 @@ def load_catalog(items_root: str | Path) -> dict[str, dict[str, Any]]:
         if info:
             out[info["id"]] = info
     return out
+
+
+def load_compact_catalog(path: str | Path) -> dict[str, dict[str, Any]]:
+    """Load data/catalog.json ({_meta, items: {id: {ru, en, icon, cat}}})."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if isinstance(data, dict) and isinstance(data.get("items"), dict):
+        return data["items"]
+    return data if isinstance(data, dict) else {}
+
+
+def load_overrides(path: str | Path) -> dict[str, str]:
+    """Manual RU names for items missing from the official DB ({id: name})."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    items = data.get("items", data) if isinstance(data, dict) else {}
+    return {str(k): str(v) for k, v in items.items()} if isinstance(items, dict) else {}
+
+
+def display_name(item_id: str, catalog: dict[str, dict[str, Any]],
+                 overrides: dict[str, str] | None = None) -> str:
+    """Best Russian name for an item (override > catalog > raw id)."""
+    if overrides and item_id in overrides:
+        return overrides[item_id]
+    info = catalog.get(item_id)
+    if info and info.get("ru"):
+        return str(info["ru"])
+    return item_id
+
+
+def search_items(query: str, catalog: dict[str, dict[str, Any]],
+                 overrides: dict[str, str] | None = None,
+                 limit: int = 10) -> list[tuple[str, str, str]]:
+    """Substring search over RU/EN names and ids -> [(id, ru, en)]."""
+    q = query.strip().lower()
+    if not q:
+        return []
+    scored: list[tuple[int, str, str, str]] = []
+    for item_id, info in catalog.items():
+        ru = str(info.get("ru", ""))
+        en = str(info.get("en", ""))
+        hay = f"{ru}\n{en}\n{item_id}".lower()
+        if q not in hay:
+            continue
+        if ru.lower().startswith(q) or item_id.lower() == q:
+            score = 0
+        elif q in ru.lower():
+            score = 1
+        elif q in en.lower():
+            score = 2
+        else:
+            score = 3
+        scored.append((score, item_id, ru, en))
+    if overrides:
+        for item_id, ru in overrides.items():
+            if item_id in catalog or q not in f"{ru}\n{item_id}".lower():
+                continue
+            scored.append((1, item_id, ru, ""))
+    scored.sort(key=lambda t: (t[0], t[2] or t[1]))
+    return [(i, ru, en) for _, i, ru, en in scored[:limit]]

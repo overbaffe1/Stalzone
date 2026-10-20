@@ -7,3 +7,6 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+# Local caches (rebuilt automatically):
+data/raw/
+data/icons/
