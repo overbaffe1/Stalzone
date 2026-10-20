@@ -16,6 +16,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Reads Secrets from BOTH repo level and the `Stalzone_config` environment
+    # (Settings -> Environments -> Stalzone_config -> Secrets).
+    environment: Stalzone_config
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,7 +48,7 @@ jobs:
 
       - name: Live smoke test (production EAPI, needs Secrets)
         env:
-          # Accept both naming styles (repo Secrets, either one wins):
+          # Accept both naming styles (repo OR environment Secrets):
           STALCRAFT_CLIENT_ID: ${{ secrets.STALCRAFT_CLIENT_ID || secrets.STALZONE_CLIENT_ID }}
           STALCRAFT_CLIENT_SECRET: ${{ secrets.STALCRAFT_CLIENT_SECRET || secrets.STALZONE_CLIENT_SECRET }}
           STALCRAFT_REGION: ${{ secrets.STALCRAFT_REGION || secrets.STALZONE_REGION }}
@@ -64,45 +67,3 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add fetched_info/
           git diff --cached --quiet || (git commit -m "ci: update test log and EAPI smoke reports [skip ci]" && git push origin HEAD:${GITHUB_REF_NAME})
-
-  # Production smoke using secrets from the `Stalzone_config` environment
-  # (Settings -> Environments -> Stalzone_config -> Secrets). Runs after `test`
-  # so the two jobs never push at the same time. continue-on-error: a missing
-  # environment must never break the main CI signal.
-  prod-smoke:
-    needs: test
-    runs-on: ubuntu-latest
-    environment: Stalzone_config
-    continue-on-error: true
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Live smoke test (production EAPI via environment secrets)
-        env:
-          STALCRAFT_CLIENT_ID: ${{ secrets.STALCRAFT_CLIENT_ID || secrets.STALZONE_CLIENT_ID }}
-          STALCRAFT_CLIENT_SECRET: ${{ secrets.STALCRAFT_CLIENT_SECRET || secrets.STALZONE_CLIENT_SECRET }}
-          STALCRAFT_REGION: ${{ secrets.STALCRAFT_REGION || secrets.STALZONE_REGION }}
-          _HAS_CRAFT_ID: ${{ secrets.STALCRAFT_CLIENT_ID != '' }}
-          _HAS_ZONE_ID: ${{ secrets.STALZONE_CLIENT_ID != '' }}
-        run: |
-          set -eo pipefail
-          mkdir -p fetched_info
-          echo "env-secret visibility: STALCRAFT_*=${_HAS_CRAFT_ID}, STALZONE_*=${_HAS_ZONE_ID}" | tee fetched_info/ci_prod.log
-          python3 tools/smoke_prod.py 2>&1 | tee -a fetched_info/ci_prod.log
-
-      - name: Commit and push prod report
-        if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
-          git add fetched_info/eapi_prod.json fetched_info/ci_prod.log
-          git diff --cached --quiet || (git commit -m "ci: update production EAPI smoke report [skip ci]" && git push origin HEAD:${GITHUB_REF_NAME})
