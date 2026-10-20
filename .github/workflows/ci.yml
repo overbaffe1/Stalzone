@@ -1,0 +1,61 @@
+name: CI — tests + EAPI smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "arena/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: |
+          set -eo pipefail
+          mkdir -p fetched_info
+          python3 -m pytest tests/ -v 2>&1 | tee fetched_info/ci_run.log
+
+      - name: Live smoke test (public demo API, no secrets)
+        run: |
+          set -eo pipefail
+          python3 tools/smoke_eapi.py 2>&1 | tee -a fetched_info/ci_run.log
+
+      - name: Live smoke test (production EAPI, needs Secrets)
+        env:
+          STALCRAFT_CLIENT_ID: ${{ secrets.STALCRAFT_CLIENT_ID }}
+          STALCRAFT_CLIENT_SECRET: ${{ secrets.STALCRAFT_CLIENT_SECRET }}
+          STALCRAFT_REGION: ${{ secrets.STALCRAFT_REGION }}
+        run: |
+          set -eo pipefail
+          python3 tools/smoke_prod.py 2>&1 | tee -a fetched_info/ci_run.log
+
+      - name: Commit and push results
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fetched_info/
+          git diff --cached --quiet || (git commit -m "ci: update test log and EAPI smoke reports [skip ci]" && git push origin HEAD:${GITHUB_REF_NAME})

@@ -1,0 +1,2 @@
+# Core + CI test deps (UI deps live in requirements-ui.txt)
+pytest>=8

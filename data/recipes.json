@@ -1,0 +1,17 @@
+{
+  "_note": "STARTER FILE. Format is compatible with konti1ks/stalzone-main recipes.json. The example below is FAKE (for math self-check only) — replace with real hideout recipes from the game / stalzone.wiki. Fields: station, skill, skill_level, productId, productCount, requirements[{itemId, count}]. Item IDs come from EXBO-Studio/stalzone-database.",
+  "recipes": [
+    {
+      "id": "EXAMPLE_DO_NOT_USE",
+      "station": "Example station",
+      "skill": "Example",
+      "skill_level": 1,
+      "productId": "EXAMPLE_PROD",
+      "productCount": 10,
+      "requirements": [
+        {"itemId": "EXAMPLE_MAT_A", "count": 2},
+        {"itemId": "EXAMPLE_MAT_B", "count": 3}
+      ]
+    }
+  ]
+}

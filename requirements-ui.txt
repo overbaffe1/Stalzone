@@ -1,0 +1,4 @@
+# Desktop UI deps (Windows/Linux with display)
+-r requirements.txt
+customtkinter>=5.2.2
+Pillow>=10.2.0

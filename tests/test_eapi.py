@@ -1,0 +1,98 @@
+import io
+import json
+import urllib.error
+
+from szmarket.eapi import EapiClient, EapiError
+
+
+class FakeResp:
+    def __init__(self, payload):
+        self._blob = json.dumps(payload).encode("utf-8")
+
+    def read(self):
+        return self._blob
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _client(**kw):
+    kw.setdefault("min_gap", 0)
+    return EapiClient("https://eapi.test", "ID123", "SECRET", region="EU", **kw)
+
+
+def test_auth_headers_and_url(monkeypatch):
+    seen = {}
+
+    def fake_urlopen(req, timeout=None):
+        seen["url"] = req.full_url
+        seen["headers"] = dict(req.header_items())
+        return FakeResp([{"ok": True}])
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    out = _client().lots("y1q9", limit=5, offset=10)
+    assert out == [{"ok": True}]
+    assert seen["url"] == "https://eapi.test/EU/auction/y1q9/lots?limit=5&offset=10"
+    lowered = {k.lower(): v for k, v in seen["headers"].items()}
+    assert lowered["client-id"] == "ID123"
+    assert lowered["client-secret"] == "SECRET"
+
+
+def test_lots_all_paginates_and_stops(monkeypatch):
+    calls = []
+
+    def fake_urlopen(req, timeout=None):
+        calls.append(req.full_url)
+        page = len(calls)
+        if page <= 2:
+            return FakeResp([{"n": page}] * 2)
+        return FakeResp([])
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    out = _client().lots_all("abc", limit=2, max_pages=5)
+    assert len(out) == 4
+    assert len(calls) == 3  # third page empty -> stop
+    assert "offset=4" in calls[2]
+
+
+def test_retry_on_429_then_success(monkeypatch):
+    state = {"n": 0}
+
+    def fake_urlopen(req, timeout=None):
+        state["n"] += 1
+        if state["n"] == 1:
+            raise urllib.error.HTTPError(
+                req.full_url, 429, "Too Many", {"Retry-After": "0"},
+                io.BytesIO(b"slow down"),
+            )
+        return FakeResp({"lots": []})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    assert _client().history("abc") == {"lots": []}
+    assert state["n"] == 2
+
+
+def test_http_error_wrapped(monkeypatch):
+    def fake_urlopen(req, timeout=None):
+        raise urllib.error.HTTPError(
+            req.full_url, 404, "Not Found", {}, io.BytesIO(b"nope"))
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    try:
+        _client().lots("zzz")
+    except EapiError as e:
+        assert e.status == 404
+    else:
+        raise AssertionError("expected EapiError")
+
+
+def test_client_requires_credentials():
+    try:
+        EapiClient("https://eapi.test", "", "")
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError")
