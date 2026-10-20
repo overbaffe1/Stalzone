@@ -2,31 +2,33 @@
 platform linux -- Python 3.11.17, pytest-9.1.1, pluggy-1.7.0 -- /opt/hostedtoolcache/Python/3.11.17/x64/bin/python3
 cachedir: .pytest_cache
 rootdir: /home/runner/work/Stalzone/Stalzone
-collecting ... collected 19 items
+collecting ... collected 20 items
 
 tests/test_arbitrage.py::test_fee_math PASSED                            [  5%]
 tests/test_arbitrage.py::test_median_and_percentile PASSED               [ 10%]
 tests/test_arbitrage.py::test_summarize_sales PASSED                     [ 15%]
-tests/test_arbitrage.py::test_find_deals_filters_and_sorts PASSED        [ 21%]
-tests/test_catalog_config.py::test_load_catalog PASSED                   [ 26%]
-tests/test_catalog_config.py::test_dotenv_and_settings PASSED            [ 31%]
-tests/test_craft.py::test_recipe_cost_and_missing PASSED                 [ 36%]
-tests/test_craft.py::test_evaluate_recipe_profit_with_fee PASSED         [ 42%]
-tests/test_craft.py::test_evaluate_recipe_none_on_missing_price PASSED   [ 47%]
-tests/test_craft.py::test_evaluate_all_sorted_best_first PASSED          [ 52%]
-tests/test_eapi.py::test_auth_headers_and_url PASSED                     [ 57%]
-tests/test_eapi.py::test_lots_all_paginates_and_stops PASSED             [ 63%]
-tests/test_eapi.py::test_retry_on_429_then_success PASSED                [ 68%]
-tests/test_eapi.py::test_http_error_wrapped PASSED                       [ 73%]
-tests/test_eapi.py::test_client_requires_credentials PASSED              [ 78%]
-tests/test_store.py::test_fingerprint_ignores_mutable_price PASSED       [ 84%]
-tests/test_store.py::test_extract_numbers_variants PASSED                [ 89%]
-tests/test_store.py::test_save_lots_dedupes PASSED                       [ 94%]
+tests/test_arbitrage.py::test_find_deals_filters_and_sorts PASSED        [ 20%]
+tests/test_catalog_config.py::test_load_catalog PASSED                   [ 25%]
+tests/test_catalog_config.py::test_dotenv_and_settings PASSED            [ 30%]
+tests/test_catalog_config.py::test_stalzone_env_fallback_names PASSED    [ 35%]
+tests/test_craft.py::test_recipe_cost_and_missing PASSED                 [ 40%]
+tests/test_craft.py::test_evaluate_recipe_profit_with_fee PASSED         [ 45%]
+tests/test_craft.py::test_evaluate_recipe_none_on_missing_price PASSED   [ 50%]
+tests/test_craft.py::test_evaluate_all_sorted_best_first PASSED          [ 55%]
+tests/test_eapi.py::test_auth_headers_and_url PASSED                     [ 60%]
+tests/test_eapi.py::test_lots_all_paginates_and_stops PASSED             [ 65%]
+tests/test_eapi.py::test_retry_on_429_then_success PASSED                [ 70%]
+tests/test_eapi.py::test_http_error_wrapped PASSED                       [ 75%]
+tests/test_eapi.py::test_client_requires_credentials PASSED              [ 80%]
+tests/test_store.py::test_fingerprint_ignores_mutable_price PASSED       [ 85%]
+tests/test_store.py::test_extract_numbers_variants PASSED                [ 90%]
+tests/test_store.py::test_save_lots_dedupes PASSED                       [ 95%]
 tests/test_store.py::test_save_and_read_sales PASSED                     [100%]
 
-============================== 19 passed in 0.12s ==============================
+============================== 20 passed in 0.13s ==============================
 [smoke] clans EU: OK (dict)
 [smoke] lots y1q9: OK (5 rows, keys=['additional', 'amount', 'buyoutPrice', 'endTime', 'itemId', 'startPrice', 'startTime'])
 [smoke] history y1q9: OK (0 rows, keys=[])
 [smoke] report -> fetched_info/eapi_smoke.json
+secret visibility: STALCRAFT_*=false, STALZONE_*=false
 [prod-smoke] SKIP: no STALCRAFT_CLIENT_ID/SECRET in env
