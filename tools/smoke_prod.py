@@ -54,9 +54,11 @@ def main() -> int:
             item_rep["lots_error"] = f"HTTP {e.status}: {(e.body or '')[:300]}"
             print(f"[prod-smoke] lots {item}@{s.region}: FAIL {e}")
         try:
-            rows = _as_list(client.history(item, limit=20))
+            payload = client.history(item, limit=20)
+            rows = _as_list(payload)
             item_rep["history_ok"] = True
             item_rep["history_count"] = len(rows)
+            item_rep["history_total"] = payload.get("total") if isinstance(payload, dict) else None
             item_rep["history_keys"] = sorted(rows[0].keys()) if rows else []
             item_rep["history_sample"] = json.dumps(rows[:3], ensure_ascii=False)[:2000]
             print(f"[prod-smoke] history {item}@{s.region}: OK ({len(rows)} rows)")

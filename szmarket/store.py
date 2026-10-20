@@ -142,8 +142,12 @@ class MarketStore:
         sales: list[dict[str, Any]],
         price_is_total: bool = True,
     ) -> int:
-        """Store sales. `price_is_total=True` means price covers the whole stack
-        (EAPI semantics per community research: price + amount)."""
+        """Store sales. `price_is_total=True` means price covers the whole stack.
+
+        VERIFIED on production 2026-10-21: a 96430 sale of
+        {amount: 5, price: 25} matches active lots of {amount: 5, buyout: 25},
+        so history `price` is the TOTAL stack price (unit = price / amount).
+        """
         now = int(time.time())
         rows = []
         for s in sales:

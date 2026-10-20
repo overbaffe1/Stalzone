@@ -85,7 +85,8 @@ agent_toolkit/   плейбук агента (GitHub Actions как вычисл
 ## Дорожная карта
 
 1. [x] Каркас: EAPI-клиент + SQLite + математика + тесты + CI
-2. [ ] Узнать реальную схему ответов lots/history из smoke-отчётов, подправить парсинг
+2. [x] Реальная схема lots/history из прод-API (lots: `{"lots":[...]}`;
+   history: `{"prices":[{amount,price,time}]}`, price = total за стак)
 3. [ ] Заполнить `data/recipes.json` реальными рецептами убежища
 4. [ ] Каталог предметов: имена в UI (подтянуть stalzone-database)
 5. [ ] Хоткеи/автодобавление предметов, вотчлист
