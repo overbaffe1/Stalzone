@@ -104,8 +104,8 @@ def main() -> None:
                 log(f"  DEAL x{d['amount']}: buy {d['unit_buy']:.0f} -> "
                     f"net {d['profit_total']:.0f} (+{d['margin']*100:.1f}%)")
 
-    def do_crafts():
-        region = region_var.get().strip() or s.region
+    def do_crafts(region: str, _items: list[str]):
+        region = region or s.region
         recipes = load_recipes("data/recipes.json")
         log(f"Loaded {len(recipes)} recipes.")
         buy: dict[str, float] = {}

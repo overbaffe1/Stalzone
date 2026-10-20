@@ -11,7 +11,9 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
 import time
+from functools import wraps
 from pathlib import Path
 from typing import Any
 
@@ -82,18 +84,68 @@ def extract_lot_numbers(lot: dict[str, Any]) -> tuple[int, float | None, float |
     return amount, total_f, total_f / max(amount, 1)
 
 
+def _locked(method):
+    """Serialize all DB access across UI worker threads (belt and suspenders
+    on top of thread-local connections; our load is tiny)."""
+
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class MarketStore:
+    """Thread-safe SQLite wrapper, safe to share across UI worker threads.
+
+    Each thread gets its OWN connection (thread-local): sharing one
+    sqlite3 connection across threads corrupts the driver's internal
+    transaction tracking even under an external lock
+    ("cannot start a transaction within a transaction" / "not an error").
+    WAL mode + busy timeout keep concurrent threads happy.
+    """
+
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(self.path))
-        self.conn.execute("PRAGMA journal_mode=WAL;")
-        self.conn.executescript(SCHEMA)
+        self._lock = threading.Lock()
+        self._local = threading.local()
+        self._ensure_schema()
 
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self.path), timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return conn
+
+    def _ensure_schema(self) -> None:
+        with self._lock:
+            conn = self._connect()
+            try:
+                conn.executescript(SCHEMA)
+                conn.commit()
+            finally:
+                conn.close()
+
+    def _conn(self) -> sqlite3.Connection:
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = self._connect()
+            self._local.conn = conn
+        return conn
+
+    @_locked
     def close(self) -> None:
-        self.conn.close()
+        """Close the CURRENT thread's connection (worker conns die with threads)."""
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            try:
+                conn.close()
+            finally:
+                self._local.conn = None
 
     # -- lots ----------------------------------------------------------
+    @_locked
     def save_lots(self, region: str, item_id: str, lots: list[dict[str, Any]]) -> int:
         now = int(time.time())
         rows = []
@@ -108,17 +160,17 @@ class MarketStore:
                     json.dumps(lot, ensure_ascii=False),
                 )
             )
-        cur = self.conn.executemany(
+        cur = self._conn().executemany(
             "INSERT OR IGNORE INTO lots "
             "(fingerprint, item_id, region, fetched_at, amount, total_price,"
             " unit_price, start_time, end_time, raw) VALUES (?,?,?,?,?,?,?,?,?,?)",
             rows,
         )
-        self.conn.commit()
+        self._conn().commit()
         return cur.rowcount if cur.rowcount is not None else 0
 
     def latest_lots(self, item_id: str, region: str) -> list[dict[str, Any]]:
-        cur = self.conn.execute(
+        cur = self._conn().execute(
             "SELECT amount, total_price, unit_price, start_time, end_time, raw FROM lots "
             "WHERE item_id=? AND region=? AND fetched_at=("
             "  SELECT MAX(fetched_at) FROM lots WHERE item_id=? AND region=?)",
@@ -161,18 +213,19 @@ class MarketStore:
                     json.dumps(s, ensure_ascii=False),
                 )
             )
-        cur = self.conn.executemany(
+        cur = self._conn().executemany(
             "INSERT INTO sales (item_id, region, fetched_at, price_raw, amount,"
             " unit_price, sold_at, raw) VALUES (?,?,?,?,?,?,?,?)",
             rows,
         )
-        self.conn.commit()
+        self._conn().commit()
         return cur.rowcount if cur.rowcount is not None else 0
 
+    @_locked
     def recent_sales(
         self, item_id: str, region: str, limit: int = 1000
     ) -> list[dict[str, Any]]:
-        cur = self.conn.execute(
+        cur = self._conn().execute(
             "SELECT unit_price, amount, sold_at, fetched_at FROM sales "
             "WHERE item_id=? AND region=? ORDER BY fetched_at DESC, id DESC LIMIT ?",
             (item_id, region, limit),
@@ -183,7 +236,7 @@ class MarketStore:
         ]
 
     def tracked_items(self, region: str) -> list[str]:
-        cur = self.conn.execute(
+        cur = self._conn().execute(
             "SELECT DISTINCT item_id FROM ("
             " SELECT item_id FROM lots WHERE region=?"
             " UNION SELECT item_id FROM sales WHERE region=?) ORDER BY 1",
