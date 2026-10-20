@@ -1,0 +1,21 @@
+{
+  "base_host": "eapi.stalcraft.net",
+  "region": "RU",
+  "item": "y1q9",
+  "lots_ok": true,
+  "lots_count": 5,
+  "lots_keys": [
+    "additional",
+    "amount",
+    "buyoutPrice",
+    "endTime",
+    "itemId",
+    "startPrice",
+    "startTime"
+  ],
+  "lots_sample": "[{\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 1400000, \"startTime\": \"2026-10-20T19:59:58Z\", \"endTime\": \"2026-10-22T19:59:58Z\", \"additional\": {}}, {\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 1400000, \"startTime\": \"2026-10-20T19:59:51Z\", \"endTime\": \"2026-10-22T19:59:51Z\", \"additional\": {}}]",
+  "history_ok": true,
+  "history_count": 0,
+  "history_keys": [],
+  "history_sample": "[]"
+}
