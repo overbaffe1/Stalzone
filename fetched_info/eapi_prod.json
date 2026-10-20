@@ -17,6 +17,7 @@
       "lots_sample": "[{\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 1350000, \"startTime\": \"2026-10-20T23:17:25Z\", \"endTime\": \"2026-10-22T23:17:25Z\", \"additional\": {}}, {\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 1400000, \"startTime\": \"2026-10-20T19:59:58Z\", \"endTime\": \"2026-10-22T19:59:58Z\", \"additional\": {}}]",
       "history_ok": true,
       "history_count": 20,
+      "history_total": 7700,
       "history_keys": [
         "additional",
         "amount",
@@ -40,6 +41,7 @@
       "lots_sample": "[{\"itemId\": \"g4lk0\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 2100000, \"startTime\": \"2026-10-20T21:32:02Z\", \"endTime\": \"2026-10-22T21:32:02Z\", \"additional\": {}}, {\"itemId\": \"g4lk0\", \"amount\": 5, \"startPrice\": 1, \"buyoutPrice\": 280, \"startTime\": \"2026-10-20T16:02:32Z\", \"endTime\": \"2026-10-22T16:02:32Z\", \"additional\": {}}]",
       "history_ok": true,
       "history_count": 20,
+      "history_total": 516455,
       "history_keys": [
         "additional",
         "amount",
@@ -63,6 +65,7 @@
       "lots_sample": "[{\"itemId\": \"96430\", \"amount\": 5, \"startPrice\": 0, \"buyoutPrice\": 25, \"startTime\": \"2026-10-19T15:16:12Z\", \"endTime\": \"2026-10-21T15:16:12Z\", \"additional\": {}}, {\"itemId\": \"96430\", \"amount\": 5, \"startPrice\": 0, \"buyoutPrice\": 50, \"startTime\": \"2026-10-19T15:15:50Z\", \"endTime\": \"2026-10-21T15:15:50Z\", \"additional\": {}}]",
       "history_ok": true,
       "history_count": 20,
+      "history_total": 398139,
       "history_keys": [
         "additional",
         "amount",
@@ -86,6 +89,7 @@
       "lots_sample": "[{\"itemId\": \"g5np\", \"amount\": 120, \"startPrice\": 0, \"buyoutPrice\": 3000, \"startTime\": \"2026-10-20T18:54:57Z\", \"endTime\": \"2026-10-21T06:54:57Z\", \"additional\": {}}, {\"itemId\": \"g5np\", \"amount\": 120, \"startPrice\": 0, \"buyoutPrice\": 12700000, \"startTime\": \"2026-10-20T16:45:51Z\", \"endTime\": \"2026-10-22T16:45:51Z\", \"additional\": {}}]",
       "history_ok": true,
       "history_count": 20,
+      "history_total": 225778,
       "history_keys": [
         "additional",
         "amount",
