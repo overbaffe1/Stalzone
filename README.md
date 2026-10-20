@@ -47,12 +47,13 @@ python -m pytest tests/ -v
 Unit-тесты — на фикстурах, без сети. Живые проверки EAPI гоняются в CI:
 
 - `tools/smoke_eapi.py` — публичное демо-API (без секретов, всегда в CI);
-- `tools/smoke_prod.py` — продакшн EAPI, только если заданы Secrets
-  `STALCRAFT_CLIENT_ID` / `STALCRAFT_CLIENT_SECRET` / `STALCRAFT_REGION`
-  (или `STALZONE_*` — оба имени поддерживаются). Два места на выбор:
-  Settings → Secrets and variables → Actions → **Repository secrets**,
-  либо Environment **`Stalzone_config`** (для него в CI есть отдельная
-  джоба `prod-smoke`). Без них — чистый SKIP.
+- `tools/smoke_prod.py` — продакшн EAPI, только если заданы Secrets.
+  Два формата на выбор (Settings → Secrets and variables → Actions →
+  **Repository secrets**, либо Environment **`Stalzone_config`** — CI читает оба):
+  либо три отдельных секрета `STALZONE_CLIENT_ID` / `STALZONE_CLIENT_SECRET` /
+  `STALZONE_REGION` (имена `STALCRAFT_*` тоже подойдут), либо один многострочный
+  секрет `STALZONE_CONFIG` со всеми тремя строками `KEY = VALUE` внутри.
+  Без них — чистый SKIP.
 
 ## Структура
 

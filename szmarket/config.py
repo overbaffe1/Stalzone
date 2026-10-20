@@ -60,24 +60,43 @@ class Settings:
     db_path: str = "data/market.db"
 
     @staticmethod
-    def _env(*names: str, default: str = "") -> str:
-        """First non-empty value among alternative env var names."""
-        for n in names:
-            v = os.environ.get(n, "")
-            if v:
-                return v
-        return default
+    def _parse_blob(blob: str) -> dict[str, str]:
+        """Parse a multi-line `KEY = VALUE` blob (the STALZONE_CONFIG secret)."""
+        out: dict[str, str] = {}
+        for line in blob.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip().strip("'\"")
+            if key:
+                out[key] = val
+        return out
 
     @classmethod
     def load(cls, env_file: str | Path = ".env") -> "Settings":
         load_dotenv(env_file)
+        blob_vars = cls._parse_blob(os.environ.get("STALZONE_CONFIG", ""))
+
+        def get(*names: str, default: str = "") -> str:
+            for n in names:  # real env / .env first
+                v = os.environ.get(n, "")
+                if v:
+                    return v
+            for n in names:  # then the STALZONE_CONFIG blob
+                v = blob_vars.get(n, "")
+                if v:
+                    return v
+            return default
+
         return cls(
-            base_url=cls._env("EAPI_BASE_URL", default=PROD_BASE_URL).rstrip("/"),
-            client_id=cls._env("STALCRAFT_CLIENT_ID", "STALZONE_CLIENT_ID"),
-            client_secret=cls._env("STALCRAFT_CLIENT_SECRET", "STALZONE_CLIENT_SECRET"),
-            region=cls._env("STALCRAFT_REGION", "STALZONE_REGION", default="RU"),
-            min_gap=float(cls._env("EAPI_MIN_GAP", default="1.0")),
-            db_path=cls._env("MARKET_DB", default="data/market.db"),
+            base_url=get("EAPI_BASE_URL", default=PROD_BASE_URL).rstrip("/"),
+            client_id=get("STALCRAFT_CLIENT_ID", "STALZONE_CLIENT_ID"),
+            client_secret=get("STALCRAFT_CLIENT_SECRET", "STALZONE_CLIENT_SECRET"),
+            region=get("STALCRAFT_REGION", "STALZONE_REGION", default="RU"),
+            min_gap=float(get("EAPI_MIN_GAP", default="1.0")),
+            db_path=get("MARKET_DB", default="data/market.db"),
         )
 
     @property
