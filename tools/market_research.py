@@ -208,6 +208,17 @@ def main() -> int:
              if "кейс" in str(info.get("ru", "")).lower()][:20]
     cases = [c for c in cases if c["count"] >= 3]
 
+    # ---- attach liquidity stats to winners --------------------------------
+    for ev in winners:
+        bd = ev.get("breakdown", [])
+        ev["stats"] = {
+            "product_count": medians.get(ev["product_id"], {}).get("count", 0),
+            "inputs_min": min(
+                [medians.get(b["item"], {}).get("count", 0) for b in bd]
+                or [medians.get(ev["product_id"], {}).get("count", 0)]),
+            "velocity": medians.get(ev["product_id"], {}).get("velocity", 0.0),
+        }
+
     # ---- save JSON ------------------------------------------------------
     result = {
         "meta": {"region": s.region, "min_sales": min_sales,
@@ -249,14 +260,24 @@ def main() -> int:
         live_note = ""
         lv = live.get(pid, {})
         if lv.get("cheapest"):
-            live_note = (f" (сейчас дешевле лот {_money(lv['cheapest'])} "
-                         f"за шт — не выставляй дороже!)")
+            if lv["cheapest"] < ev["sell_price"]:
+                live_note = (f" (⚠ сейчас висит лот по {_money(lv['cheapest'])} "
+                             f"за шт — выставляй дешевле него!)")
+            else:
+                live_note = (f" (дешевле {_money(lv['cheapest'])}/шт "
+                             f"сейчас ничего нет — рынок выше медианы)")
         skill = (f", навык {ev['skill']} {ev['skill_level']}"
                  if ev.get("skill") else "")
+        stt = ev.get("stats", {})
+        roi_flag = (" ⚠ ROI огромный — проверь условия NPC в игре "
+                    "(репутация/квест/лимит)" if ev["roi"] > 10 else "")
         L.append(f"### {n}. {name_of(pid)} ×{ev['units']:g} — "
-                 f"профит {_money(ev['profit'])} (ROI {ev['roi'] * 100:.0f}%)")
+                 f"профит {_money(ev['profit'])} (ROI {ev['roi'] * 100:.0f}%)"
+                 f"{roi_flag}")
         L.append(f"{KIND_RU.get(ev['kind'], ev['kind'])}: {ev['station']}"
-                 f"{skill}, энергия ⚡{ev['energy']:g}.")
+                 f"{skill}, энергия ⚡{ev['energy']:g}. "
+                 f"Продаж: товар {stt.get('product_count', '?')}, "
+                 f"входы ≥{stt.get('inputs_min', '?')}.")
         L.append(f"Делай: {'; '.join(steps) if steps else 'просто заплати NPC'} "
                  f"→ получишь {name_of(pid)} → продай ≈ "
                  f"{_money(ev['sell_price'] * ev['units'])} грязными / "
