@@ -65,6 +65,8 @@ def main() -> None:
     from szmarket.store import MarketStore
     from szmarket.zonemap import (apply_calibration, ensure_background,
                                   load_calibration, save_calibration)
+    from szmarket import waypoints as wpmod
+    from ui.dossier import open_dossier
     from ui.mapview import MapView, fmt_short
 
     s = Settings.load()
@@ -77,6 +79,8 @@ def main() -> None:
     watch_items: list[str] = list(
         watch_data.get("items") or ["g4lk0", "96430", "g5np", "y1q9"])
     enabled: dict[str, bool] = dict(watch_data.get("enabled") or {})
+    targets: dict[str, float] = {k: float(v) for k, v in
+                                 (watch_data.get("targets") or {}).items()}
     region_default = str(watch_data.get("region") or s.region)
 
     def name_of(iid: str) -> str:
@@ -199,6 +203,16 @@ def main() -> None:
     ctk.CTkOptionMenu(search_fr, variable=station_var,
                       values=station_options, width=215).pack(side="left",
                                                               padx=4)
+    sort_var = ctk.StringVar(value="Профит")
+    ctk.CTkOptionMenu(search_fr, variable=sort_var,
+                      values=["Профит", "₽ за ⚡", "ROI"], width=95,
+                      command=lambda _v: render_craft_rows()).pack(
+                          side="left", padx=4)
+    energy_var = ctk.StringVar(value="⚡∞")
+    ctk.CTkOptionMenu(search_fr, variable=energy_var,
+                      values=["⚡∞", "⚡≤1000", "⚡≤500", "⚡≤300"], width=95,
+                      command=lambda _v: render_craft_rows()).pack(
+                          side="left", padx=4)
 
     # ---- середина: список + результаты/карта -------------------------------
     mid = ctk.CTkFrame(app)
@@ -234,6 +248,12 @@ def main() -> None:
     calib_btn = ctk.CTkButton(map_head, text="🎯 Калибровка", width=130,
                               command=lambda: toggle_calibrate())
     calib_btn.pack(side="left", padx=4)
+    wp_btn = ctk.CTkButton(map_head, text="📍 В игру", width=100,
+                           command=lambda: export_waypoints())
+    wp_btn.pack(side="left", padx=4)
+    wpclr_btn = ctk.CTkButton(map_head, text="🧹", width=40,
+                              command=lambda: clear_waypoints())
+    wpclr_btn.pack(side="left", padx=2)
     hover_var = ctk.StringVar(value="")
     ctk.CTkLabel(map_head, textvariable=hover_var,
                  font=ctk.CTkFont(size=11)).pack(side="left", padx=12)
@@ -356,7 +376,8 @@ def main() -> None:
         Path("data/watchlist.json").write_text(json.dumps(
             {"region": region_var.get().strip() or s.region,
              "items": watch_items,
-             "enabled": {i: bool(enabled.get(i, True)) for i in watch_items}},
+             "enabled": {i: bool(enabled.get(i, True)) for i in watch_items},
+             "targets": {i: targets[i] for i in watch_items if i in targets}},
             ensure_ascii=False, indent=1), encoding="utf-8")
 
     def toggle_item(iid: str, var: Any) -> None:
@@ -383,13 +404,18 @@ def main() -> None:
             if img is not None:
                 ctk.CTkLabel(fr, text="", image=img).pack(side="left",
                                                           padx=4, pady=4)
-            ctk.CTkLabel(fr, text=f"{name_of(iid)}\nID: {iid}",
+            tgt_txt = (f" · 🎯{_fmt_money(targets[iid])}"
+                         if iid in targets else "")
+            ctk.CTkLabel(fr, text=f"{name_of(iid)}\nID: {iid}{tgt_txt}",
                          justify="left", anchor="w", font=sub_font).pack(
                              side="left", padx=4, pady=4, fill="x",
                              expand=True)
+            ctk.CTkButton(fr, text="📋", width=40,
+                          command=lambda i=iid: open_dossier_win(i)).pack(
+                              side="right", padx=2)
             ctk.CTkButton(fr, text="✕", width=40,
                           command=lambda i=iid: remove_item(i)).pack(
-                              side="right", padx=6)
+                              side="right", padx=2)
 
     def add_item(iid: str) -> None:
         iid = (iid or "").strip()
@@ -431,11 +457,12 @@ def main() -> None:
         show_rows(rows)
 
     # ---- фоновые действия --------------------------------------------------
-    def make_client(region: str) -> Any:
+    def make_client(region: str, quiet: bool = False) -> Any:
         st = Settings.load()  # перечитываем .env при каждом действии
         if not st.has_credentials:
-            log("🪞 Ключа нет — беру данные из зеркала "
-                "(может отставать от игры).")
+            if not quiet:
+                log("🪞 Ключа нет — беру данные из зеркала "
+                    "(может отставать от игры).")
             return MirrorClient(region=region or st.region)
         return EapiClient(st.base_url, st.client_id, st.client_secret,
                           region=region or st.region,
@@ -671,7 +698,19 @@ def main() -> None:
         }
 
     def render_craft_rows() -> None:  # главный поток
-        rows = [craft_row(ev) for ev in craft_evs if ev["profit"] > 0][:20]
+        if not craft_evs:
+            return
+        lim = {"⚡∞": None, "⚡≤1000": 1000.0, "⚡≤500": 500.0,
+               "⚡≤300": 300.0}[energy_var.get()]
+        evs = [e for e in craft_evs if e["profit"] > 0
+               and (lim is None or (e.get("energy") or 0) <= lim)]
+        mode = sort_var.get()
+        if mode == "₽ за ⚡":
+            evs.sort(key=lambda e: e["profit"] / max(e.get("energy") or 0, 1),
+                     reverse=True)
+        elif mode == "ROI":
+            evs.sort(key=lambda e: e["roi"], reverse=True)
+        rows = [craft_row(ev) for ev in evs[:20]]
         if not rows:
             rows = [{"title": "Прибыльных крафтов не нашлось.",
                      "sub": ("Цены свежие — рынок сейчас ровный, "
@@ -837,6 +876,210 @@ def main() -> None:
                         f"{name_of(e['product_id'])} → +{_fmt_money(e['profit'])}",
                         need or "—")
 
+    def get_target(iid: str) -> float | None:  # главный поток
+        return targets.get(iid)
+
+    def set_target(iid: str, price: float | None) -> None:  # главный поток
+        if price is None:
+            targets.pop(iid, None)
+        else:
+            targets[iid] = float(price)
+        save_watch()
+        render_watch()
+
+    def open_dossier_win(iid: str) -> None:  # главный поток
+        ctx = {"store": store,
+               "region": region_var.get().strip() or s.region,
+               "recipes": recipes, "fmt_money": _fmt_money,
+               "name_of": name_of, "tk_icon": tk_icon,
+               "station_short": station_short, "get_target": get_target,
+               "set_target": set_target}
+        open_dossier(app, ctx, iid)
+
+    watchdog = {"on": False, "stop": None, "cool": {}, "region": ""}
+
+    def watchdog_popup(title: str, msg: str) -> None:  # главный поток
+        win = ctk.CTkToplevel(app)
+        win.title(title)
+        win.geometry("420x180")
+        win.attributes("-topmost", True)
+        ctk.CTkLabel(win, text=msg, font=title_font, wraplength=380,
+                     justify="left").pack(padx=12, pady=12, fill="both",
+                                           expand=True)
+        ctk.CTkButton(win, text="Понял", command=win.destroy).pack(pady=8)
+        try:
+            import winsound
+
+            winsound.Beep(880, 300)
+        except Exception:  # noqa: BLE001 - не Windows
+            pass
+
+    def toggle_watchdog() -> None:  # главный поток
+        if watchdog["on"]:
+            watchdog["on"] = False
+            ev = watchdog["stop"]
+            if ev is not None:
+                ev.set()
+            wd_btn.configure(text="🔔 Сторож")
+            set_status("Сторож выключен.")
+            return
+        if not any(i in targets for i in watch_items if enabled.get(i, True)):
+            log("Сторожу нечего караулить: откройте 📋 досье предмета "
+                "и задайте цель 🎯.")
+            return
+        watchdog["on"] = True
+        watchdog["stop"] = threading.Event()
+        watchdog["region"] = region_var.get().strip()
+        wd_btn.configure(text="🔕 Стоп")
+        set_status("Сторож включён: проверка каждые 5 мин.")
+        threading.Thread(target=_guarded(watchdog_loop), daemon=True).start()
+
+    def watchdog_loop() -> None:  # фон
+        import time as _t
+
+        stop = watchdog["stop"]
+        while watchdog["on"]:
+            try:
+                c = make_client(watchdog["region"], quiet=True)
+                with EAPI_LOCK:
+                    items = [i for i in list(watch_items)
+                             if enabled.get(i, True) and i in targets]
+                    for iid in items:
+                        if stop is not None and stop.is_set():
+                            return
+                        lots = c.lots_all(iid, limit=50, max_pages=1)
+                        store.save_lots(c.region, iid, lots)
+                        units = [float(x.get("unit_price", 0) or 0)
+                                 for x in store.latest_lots(iid, c.region)]
+                        units = [u for u in units if u > 0]
+                        if units and min(units) <= targets[iid]:
+                            last = watchdog["cool"].get(iid, 0)
+                            if _t.time() - last > 1800:
+                                watchdog["cool"][iid] = _t.time()
+                                msg = (f"{name_of(iid)}: лот по "
+                                       f"{_fmt_money(min(units))} ≤ цели "
+                                       f"{_fmt_money(targets[iid])}!")
+                                app.after(0, lambda m=msg: watchdog_popup(
+                                    "🔔 Сторож: цена достигнута", m))
+                                app.after(0, lambda m=msg: set_status(m))
+            except Exception as e:  # noqa: BLE001 - сторож не падает
+                app.after(0, lambda: log(f"⚠ Сторож: {e}"))
+            for _ in range(60):
+                if stop is not None and stop.wait(5):
+                    return
+
+    def calib_xy(st: str) -> tuple[float, float]:
+        info = settlements.get(st, {})
+        c = map_state["calib"].get(st)
+        if c:
+            return float(c[0]), float(c[1])
+        return float(info.get("x", 0.5)), float(info.get("y", 0.5))
+
+    def _load_affine() -> dict[str, float] | None:
+        try:
+            d = json.loads(Path("data/wp_affine.json").read_text(
+                encoding="utf-8"))
+            return d if isinstance(d, dict) and "ax" in d else None
+        except (OSError, ValueError):
+            return None
+
+    def _save_affine(aff: dict[str, float]) -> None:
+        Path("data").mkdir(exist_ok=True)
+        Path("data/wp_affine.json").write_text(
+            json.dumps(aff, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    def export_waypoints() -> None:  # главный поток
+        tr = current_trip
+        if not tr or not tr.get("stops"):
+            set_status("Нет маршрута для экспорта — постройте рейс.")
+            return
+        aff = _load_affine()
+        if aff is None:
+            open_anchor_dialog()
+            return
+        start = start_var.get()
+        order = [(f"S {station_short(start)}", *calib_xy(start))]
+        for n, t in enumerate(tr.get("stops", []), 1):
+            if t["station"] == start:
+                continue
+            order.append((f"{n} {station_short(t['station'])} "
+                          f"{fmt_short(t['profit'])}",
+                          *calib_xy(t["station"])))
+        marks = wpmod.build_route_marks(order, aff)
+        cfg = wpmod.find_waypoints_cfg()
+        if cfg is None:
+            out = Path("data/route_waypoints.cfg")
+            wpmod.save_waypoints(out, marks, backup=False)
+            set_status(f"waypoints.cfg не найден — маршрут в {out}, "
+                       f"скопируй в игру вручную.")
+            return
+        bak = wpmod.save_waypoints(
+            cfg, wpmod.merge_marks(wpmod.load_waypoints(cfg), marks))
+        set_status(f"В игре: {len(marks)} меток SZ_*."
+                   + (f" Бэкап: {bak.name}." if bak else ""))
+
+    def clear_waypoints() -> None:  # главный поток
+        cfg = wpmod.find_waypoints_cfg()
+        if cfg is None:
+            set_status("waypoints.cfg не найден.")
+            return
+        wpmod.save_waypoints(
+            cfg, wpmod.strip_marks(wpmod.load_waypoints(cfg)))
+        set_status("Метки SZ_* убраны из игры (якоря SZ_A/SZ_B оставлены).")
+
+    def open_anchor_dialog() -> None:  # главный поток
+        win = ctk.CTkToplevel(app)
+        win.title("Привязка к игре")
+        win.geometry("480x400")
+        win.transient(app)
+        ctk.CTkLabel(win, text="Якоря: 2 метки в игре", font=title_font
+                     ).pack(padx=12, pady=(10, 2))
+        ctk.CTkLabel(
+            win, justify="left",
+            text="1) Поставь в игре метку SZ_A на одном поселении,\n"
+                 "     а SZ_B — на другом (имена — ровно так!).\n"
+                 "2) Выбери ниже, где какая.\n"
+                 "3) Жми «Прочитать из игры» (один раз).").pack(padx=12,
+                                                                pady=2)
+        a_var = ctk.StringVar(value="Бартер · База «Зари»")
+        b_var = ctk.StringVar(value="Бартер · Бар")
+        ctk.CTkLabel(win, text="SZ_A стоит на:").pack(padx=12, pady=(6, 0))
+        ctk.CTkOptionMenu(win, variable=a_var, values=map_starts, width=260
+                          ).pack(padx=12)
+        ctk.CTkLabel(win, text="SZ_B стоит на:").pack(padx=12, pady=(6, 0))
+        ctk.CTkOptionMenu(win, variable=b_var, values=map_starts, width=260
+                          ).pack(padx=12)
+        status_l = ctk.CTkLabel(win, text="", wraplength=440)
+        status_l.pack(padx=12, pady=6)
+
+        def do_read() -> None:
+            cfg = wpmod.find_waypoints_cfg()
+            if cfg is None:
+                status_l.configure(
+                    text="waypoints.cfg не найден. Запусти игру хоть раз "
+                         "и поставь любую метку.")
+                return
+            marks = wpmod.load_waypoints(cfg)
+            pa = wpmod.find_anchor(marks, wpmod.ANCHOR_A)
+            pb = wpmod.find_anchor(marks, wpmod.ANCHOR_B)
+            if pa is None or pb is None:
+                status_l.configure(text="Не вижу SZ_A/SZ_B в файле. "
+                                        "Проверь имена меток в игре.")
+                return
+            aff = wpmod.fit_affine(calib_xy(a_var.get()), pa,
+                                   calib_xy(b_var.get()), pb)
+            if aff is None:
+                status_l.configure(text="Якоря совпали — поставь их "
+                                        "в РАЗНЫХ поселениях.")
+                return
+            _save_affine(aff)
+            status_l.configure(
+                text=f"Готово! A=({pa['x']:.0f}, {pa['z']:.0f}) "
+                     f"B=({pb['x']:.0f}, {pb['z']:.0f}). Жми «📍 В игру».")
+
+        ctk.CTkButton(win, text="Прочитать из игры", command=do_read
+                      ).pack(pady=8)
+
     def open_trip() -> None:  # главный поток
         if not trip:
             log("Рейс пуст — нажмите «+ Рейс» на строках крафтов.")
@@ -860,6 +1103,8 @@ def main() -> None:
                   command=lambda: clicked(do_snipe)).pack(side="left", padx=5)
     trip_btn = ctk.CTkButton(btns, text="🧭 Рейс (0)", command=open_trip)
     trip_btn.pack(side="left", padx=5)
+    wd_btn = ctk.CTkButton(btns, text="🔔 Сторож", command=toggle_watchdog)
+    wd_btn.pack(side="left", padx=5)
     ctk.CTkButton(btns, text="📋 Копировать",
                   command=copy_results).pack(side="left", padx=5)
     ctk.CTkButton(btns, text="Очистить",
@@ -903,7 +1148,9 @@ def main() -> None:
                  "3) «Выгодные лоты» / «Скоро конец» / «Крафты в плюс»\n"
                  "4) «🗺 Карта» на строке крафта — маршрут: где купить, "
                  "куда прийти, где продать\n"
-                 "5) «+ Рейс» отмечает крафты, «🧭 Рейс» строит общий маршрут")},
+                 "5) «+ Рейс» отмечает крафты, «🧭 Рейс» строит общий маршрут, "
+                 "«📍 В игру» переносит его в игру метками\n"
+                 "6) «📋» в списке — досье предмета, 🎯 — цель для «🔔 Сторожа»")},
         {"title": f"📦 Каталог: {len(cat)} предметов · рецептов: {len(recipes)}",
          "sub": ("Названия и иконки — из официальной базы EXBO. "
                  "Иконки докачиваются в фоне (статус справа вверху).")},
