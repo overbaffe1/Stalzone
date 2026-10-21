@@ -78,7 +78,7 @@ jobs:
         run: |
           set -eo pipefail
           MSG="${{ github.event.head_commit.message }}"
-          N="$(printf '%s' "$MSG" | grep -o '\[research:[0-9][0-9]*\]' | grep -o '[0-9][0-9]*' | head -1)"
+          N="$(printf '%s' "$MSG" | grep -o '\[research:[0-9][0-9]*\]' | grep -o '[0-9][0-9]*' | head -1 || true)"
           export RESEARCH_MAX_ITEMS="${N:-0}"
           echo "research scope: MAX_ITEMS=$RESEARCH_MAX_ITEMS (0 = full scan)"
           python3 tools/market_research.py 2>&1 | tee fetched_info/research_run.log
