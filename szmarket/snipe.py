@@ -63,17 +63,23 @@ def analyze_ending(
     fee: float = AUCTION_FEE,
     min_margin: float = 0.02,
     min_sales: int = 5,
+    qlt_summaries: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Score lots ending soon against sales history. Soonest expiry first.
 
     Every row carries BOTH verdicts: instant buyout (buyout_total <= ceiling)
     and bidding (next valid bid = current * 1.05 <= ceiling). A lot is kept
     if at least one path clears `min_margin`.
+
+    With `qlt_summaries` (from summarize_by_quality), a lot is scored
+    against the median of its own quality tier when that tier has enough
+    sales — otherwise against the mixed summary.
     """
+    from .arbitrage import extract_qlt  # local: keep module import-light
+
     if summary.get("count", 0) < min_sales or summary.get("median", 0) <= 0:
         return []
     now = now or dt.datetime.now(dt.timezone.utc)
-    fair_unit = summary["median"] * (1.0 - fee)
     out: list[dict[str, Any]] = []
     for lot in lots:
         end = parse_time(lot.get("end_time"))
@@ -85,6 +91,13 @@ def analyze_ending(
         buy_unit = lot.get("unit_price")
         if not buy_unit or buy_unit <= 0:
             continue
+        sm = summary
+        q = extract_qlt(lot.get("raw"))
+        if qlt_summaries and q is not None:
+            cand = (qlt_summaries.get("qlt") or {}).get(q)
+            if cand and cand.get("count", 0) >= min_sales:
+                sm = cand
+        fair_unit = sm["median"] * (1.0 - fee)
         amount = int(lot.get("amount", 1) or 1)
         buy_total = float(buy_unit) * amount
         max_buy_total = fair_unit * amount
@@ -114,7 +127,8 @@ def analyze_ending(
             "buy_total": buy_total,
             "unit_buy": float(buy_unit),
             "max_buy_total": max_buy_total,
-            "fair_median": summary["median"],
+            "fair_median": sm["median"],
+            "qlt": q,
             "profit_total": profit_buyout if buyout_ok else profit_bid,
             "margin": margin_buyout if buyout_ok else margin_bid,
             "buyout_ok": buyout_ok,

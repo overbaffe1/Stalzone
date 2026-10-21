@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from szmarket import catalog as catmod
 from szmarket.arbitrage import AUCTION_FEE, summarize_sales
 from szmarket.config import Settings
-from szmarket.craft import evaluate_all, load_recipes
+from szmarket.craft import evaluate_all, find_swaps, load_recipes
 from szmarket.eapi import EapiClient, EapiError, TokenBucket
 from szmarket.snipe import analyze_ending
 from szmarket.store import MarketStore
@@ -220,12 +220,37 @@ def main() -> int:
         }
 
     # ---- save JSON ------------------------------------------------------
+    # ---- see-saw swaps: buy cheap side, swap 1:1, sell pricey side -------
+    swap_rows = []
+    for swp in find_swaps(recipes):
+        a, b = swp["a"], swp["b"]
+        ma, mb = medians.get(a, {}), medians.get(b, {})
+        if ma.get("count", 0) < min_sales or mb.get("count", 0) < min_sales:
+            continue
+        if ma.get("median", 0) <= 0 or mb.get("median", 0) <= 0:
+            continue
+        if ma["median"] <= mb["median"]:
+            buy_id, sell_id, stn = a, b, swp["a_to_b"]
+        else:
+            buy_id, sell_id, stn = b, a, swp["b_to_a"]
+        buy_m = medians[buy_id]["median"]
+        sell_m = medians[sell_id]["median"]
+        profit = sell_m * (1 - AUCTION_FEE) - buy_m
+        if profit > 0:
+            swap_rows.append({"buy_id": buy_id, "sell_id": sell_id,
+                              "buy_med": buy_m, "sell_med": sell_m,
+                              "profit": profit, "stations": stn,
+                              "count_buy": medians[buy_id]["count"],
+                              "count_sell": medians[sell_id]["count"]})
+    swap_rows.sort(key=lambda d: d["profit"], reverse=True)
+
     result = {
         "meta": {"region": s.region, "min_sales": min_sales,
                  "recipes": len(recipes), "items": len(need),
                  "covered": covered,
                  "elapsed_min": round((time.time() - t0) / 60, 1)},
         "top": winners[:30],
+        "swaps": swap_rows[:15],
         "snipe": snipe_rows[:40],
         "splits": splits[:20],
         "backpacks": pack_notes,
@@ -309,7 +334,7 @@ def main() -> int:
         L.append("## Заканчиваются торги (≤3 ч, ставка или выкуп)")
         L.append("")
         for h in snipe_rows[:15]:
-            if h["verdict"] == "buyout":
+            if h["buyout_ok"]:
                 act = (f"🔥 ВЫКУПАЙ за {_money(h['buy_total'])}, профит "
                        f"{_money(h['profit_total'])}")
             else:
@@ -318,6 +343,53 @@ def main() -> int:
             L.append(f"- {name_of(h['item_id'])} ×{h['amount']}: "
                      f"конец через {h['time_left']} — {act}")
         L.append("")
+    if swap_rows:
+        L.append("## Качели: обратимые обмены 1:1")
+        L.append("")
+        L.append("Обмен работает в обе стороны — покупай дешёвую сторону, "
+                 "меняй у NPC, продавай дорогую. Повторяемо, пока жив разрыв.")
+        for d in swap_rows[:10]:
+            stn = ", ".join(d["stations"][:2])
+            L.append(f"- {name_of(d['buy_id'])} ({_money(d['buy_med'])}) → "
+                     f"{name_of(d['sell_id'])} ({_money(d['sell_med'])}): "
+                     f"профит {_money(d['profit'])} @ {stn} "
+                     f"(продаж {d['count_buy']}/{d['count_sell']})")
+        L.append("")
+    # best hour to sell (UTC) for the most liquid winner products
+    L.append("## Когда продавать (час по UTC)")
+    L.append("")
+    hourly_done = 0
+    for ev in winners[:15]:
+        pid = ev["product_id"]
+        buckets: dict[int, list[float]] = {}
+        for r in store.recent_sales(pid, s.region, 2000):
+            t = str(r.get("sold_at") or "")
+            try:
+                hr = int(t[11:13]) if len(t) >= 13 else -1
+            except ValueError:
+                hr = -1
+            if 0 <= hr <= 23 and r.get("unit_price"):
+                buckets.setdefault(hr, []).append(float(r["unit_price"]))
+        if len(buckets) < 4:
+            continue
+        import statistics
+        med = {h: statistics.median(v) for h, v in buckets.items()
+               if len(v) >= 3}
+        if len(med) < 4:
+            continue
+        best_h = max(med, key=med.get)
+        worst_h = min(med, key=med.get)
+        if med[worst_h] > 0 and med[best_h] / med[worst_h] >= 1.15:
+            L.append(f"- {name_of(pid)}: лучше всего в {best_h:02d}:00 UTC "
+                     f"({_money(med[best_h])}), хуже в {worst_h:02d}:00 UTC "
+                     f"({_money(med[worst_h])})")
+            hourly_done += 1
+            if hourly_done >= 8:
+                break
+    if not hourly_done:
+        L.append("Значимых различий по часам не нашлось (разброс < 15%) — "
+                 "продавай когда удобно.")
+    L.append("")
     L.append("## Потерянные рюкзаки")
     L.append("")
     if not pack_notes or all(p.get("lots", 0) == 0 for p in pack_notes):

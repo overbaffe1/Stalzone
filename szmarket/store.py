@@ -226,14 +226,24 @@ class MarketStore:
         self, item_id: str, region: str, limit: int = 1000
     ) -> list[dict[str, Any]]:
         cur = self._conn().execute(
-            "SELECT unit_price, amount, sold_at, fetched_at FROM sales "
+            "SELECT unit_price, amount, sold_at, fetched_at, raw FROM sales "
             "WHERE item_id=? AND region=? ORDER BY fetched_at DESC, id DESC LIMIT ?",
             (item_id, region, limit),
         )
-        return [
-            {"unit_price": u, "amount": a, "sold_at": s, "fetched_at": t}
-            for u, a, s, t in cur.fetchall()
-        ]
+        out = []
+        for u, a, s, t, raw_json in cur.fetchall():
+            try:
+                add = ((json.loads(raw_json or "{}") or {})
+                       .get("additional") or {})
+            except ValueError:
+                add = {}
+            q = add.get("qlt")
+            out.append({
+                "unit_price": u, "amount": a, "sold_at": s, "fetched_at": t,
+                "qlt": q if isinstance(q, int) and 0 <= q <= 5 else None,
+                "bonus": "bonus_properties" in add,
+            })
+        return out
 
     def tracked_items(self, region: str) -> list[str]:
         cur = self._conn().execute(

@@ -10,3 +10,5 @@ venv/
 # Local caches (rebuilt automatically):
 data/raw/
 data/icons/
+data/maps/
+data/map_calibration.json

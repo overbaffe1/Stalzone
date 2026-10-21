@@ -1,12 +1,20 @@
-"""Схематичная карта Зоны на tkinter.Canvas: поселения, маршрут, прибыль.
+"""Карта Зоны на tkinter.Canvas: поселения, маршрут, прибыль.
 
-Никаких внешних картинок: всё рисуется кодом в тёмном сталкерском стиле.
-Координаты поселений — data/map_settlements.json (0..1, y=0 это север).
+Два режима фона: схематичный (рисуется кодом) и реальный
+(склейка превью STALZONE Wiki, грузится в фоне, см. szmarket.zonemap).
+В режиме калибровки маркеры можно перетаскивать на истинные места —
+позиции сохраняются в data/map_calibration.json.
 """
 from __future__ import annotations
 
 import tkinter as tk
 from typing import Any, Callable
+
+try:
+    from PIL import Image, ImageTk
+except ImportError:  # pragma: no cover - без PIL только схема
+    Image = None  # type: ignore[assignment]
+    ImageTk = None  # type: ignore[assignment]
 
 BG = "#0B0F0C"
 BAND_N = "#130C11"   # север — красноватый
@@ -18,7 +26,7 @@ GOLD = "#FFC857"
 TEXT = "#E8EDE9"
 DIM = "#8A948E"
 
-# дороги между поселениями (короткие имена из map_settlements.json)
+# дороги между поселениями (только для схематичного фона)
 ROADS = [
     ("Завет", "Север"), ("Север", "Рубеж"), ("Рубеж", "Бар"),
     ("Бар", "Гейгер"), ("Бар", "Наёмники"), ("Бар", "Зари"),
@@ -45,17 +53,27 @@ class MapView(tk.Canvas):
 
     def __init__(self, master: Any,
                  on_select: Callable[[str], None] | None = None,
-                 hover_var: Any = None, **kw: Any):
+                 hover_var: Any = None,
+                 on_move: Callable[[str, float, float], None] | None = None,
+                 **kw: Any):
         super().__init__(master, bg=BG, highlightthickness=0, **kw)
         self._on_select = on_select
         self._hover_var = hover_var
+        self._on_move = on_move
         self._markers: list[dict[str, Any]] = []
         self._pos: dict[str, tuple[float, float]] = {}
         self._home_txt = ""
         self._route: list[str] = []
+        self._bg_src: Any = None       # PIL image (исходник фона)
+        self._bg_photo: Any = None     # закэшированный PhotoImage
+        self._bg_size: tuple[int, int] = (0, 0)
+        self._calibrate = False
+        self._drag: dict[str, Any] | None = None
         self._after_id: str | None = None
         self.bind("<Configure>", self._on_resize)
-        self.bind("<Button-1>", self._on_click)
+        self.bind("<ButtonPress-1>", self._on_press)
+        self.bind("<B1-Motion>", self._on_drag)
+        self.bind("<ButtonRelease-1>", self._on_release)
         self.bind("<Motion>", self._on_hover)
         self.bind("<Leave>", lambda _e: self._set_hover(""))
 
@@ -69,26 +87,66 @@ class MapView(tk.Canvas):
         self._home_txt = home_txt
         self.draw()
 
+    def set_background(self, path: Any) -> None:
+        """Фон из PNG (или None = схема). Вызывать в главном потоке."""
+        self._bg_src = None
+        self._bg_photo = None
+        if path is not None and Image is not None:
+            try:
+                self._bg_src = Image.open(path).convert("RGB")
+            except (OSError, ValueError):
+                self._bg_src = None
+        self.draw()
+
+    def has_background(self) -> bool:
+        return self._bg_src is not None
+
+    def set_calibrate(self, on: bool) -> None:
+        self._calibrate = bool(on)
+        self._drag = None
+        self.draw()
+
     # -- события -----------------------------------------------------
     def _on_resize(self, _e: Any = None) -> None:
         if self._after_id:
             self.after_cancel(self._after_id)
         self._after_id = self.after(150, self.draw)
 
-    def _hit(self, x: float, y: float) -> dict[str, Any] | None:
+    def _hit(self, x: float, y: float, tol: float = 16.0
+             ) -> dict[str, Any] | None:
         best = None
         for m in self._markers:
             px, py = self._pos.get(m["station"], (None, None))
             if px is None:
                 continue
-            if abs(px - x) < 16 and abs(py - y) < 16:
+            if abs(px - x) < tol and abs(py - y) < tol:
                 best = m
         return best
 
-    def _on_click(self, e: Any) -> None:
-        m = self._hit(e.x, e.y)
-        if m and self._on_select:
-            self._on_select(m["station"])
+    def _on_press(self, e: Any) -> None:
+        if self._calibrate:
+            self._drag = self._hit(e.x, e.y, tol=22.0)
+        else:
+            m = self._hit(e.x, e.y)
+            if m and self._on_select:
+                self._on_select(m["station"])
+
+    def _on_drag(self, e: Any) -> None:
+        if not self._drag:
+            return
+        w = max(self.winfo_width(), 200)
+        h = max(self.winfo_height(), 200)
+        pad = 46
+        x = min(max((e.x - pad) / max(w - 2 * pad, 1), 0.0), 1.0)
+        y = min(max((e.y - pad) / max(h - 2 * pad - 8, 1), 0.0), 1.0)
+        self._drag["x"], self._drag["y"] = x, y
+        self.draw()
+
+    def _on_release(self, _e: Any) -> None:
+        if self._drag and self._on_move:
+            m = self._drag
+            self._on_move(m["station"], m["x"], m["y"])
+        self._drag = None
 
     def _set_hover(self, txt: str) -> None:
         if self._hover_var is not None:
@@ -101,7 +159,10 @@ class MapView(tk.Canvas):
         m = self._hit(e.x, e.y)
         if m:
             extra = f" · {m['badge']}" if m.get("badge") else ""
-            self._set_hover(f"📍 {m['short']}{extra} — клик: что тут делать")
+            if self._calibrate:
+                self._set_hover(f"🎯 {m['short']}: тащи на истинное место")
+            else:
+                self._set_hover(f"📍 {m['short']}{extra} — клик: что тут делать")
         else:
             self._set_hover("")
 
@@ -110,39 +171,56 @@ class MapView(tk.Canvas):
             pad: int = 46) -> tuple[float, float]:
         return pad + x * (w - 2 * pad), pad + y * (h - 2 * pad - 8)
 
+    def _banner(self, cx: float, cy: float, text: str,
+                font: tuple = ("Arial", 9)) -> None:
+        """Текст на чёрной подложке (читается и на фото-карте)."""
+        tmp = self.create_text(cx, cy, text=text, fill=TEXT, font=font)
+        x1, y1, x2, y2 = self.bbox(tmp)
+        self.delete(tmp)
+        self.create_rectangle(x1 - 6, y1 - 3, x2 + 6, y2 + 3,
+                              fill="#000000", outline="")
+        self.create_text(cx, cy, text=text, fill=TEXT, font=font)
+
     def draw(self) -> None:
         self.delete("all")
         w = max(self.winfo_width(), 200)
         h = max(self.winfo_height(), 200)
         pad = 46
         self._pos = {}
-        # полосы севера/центра/юга
-        self.create_rectangle(0, 0, w, h * 0.33, fill=BAND_N, outline="")
-        self.create_rectangle(0, h * 0.33, w, h * 0.66, fill=BAND_M,
-                              outline="")
-        self.create_rectangle(0, h * 0.66, w, h, fill=BAND_S, outline="")
-        # сетка
-        for i in range(1, 10):
-            gx = pad + i / 10 * (w - 2 * pad)
-            gy = pad + i / 10 * (h - 2 * pad - 8)
-            self.create_line(gx, 0, gx, h, fill=GRID)
-            self.create_line(0, gy, w, gy, fill=GRID)
-        # подписи зон
-        self.create_text(w - 10, 14, text="СЕВЕР · Припять", fill=DIM,
-                         anchor="ne", font=("Arial", 9, "bold"))
-        self.create_text(w - 10, h - 10, text="ЮГ · новички", fill=DIM,
-                         anchor="se", font=("Arial", 9, "bold"))
-        self.create_text(12, 14, text="⬆ С", fill=TEXT, anchor="nw",
-                         font=("Arial", 11, "bold"))
-        self.create_text(w / 2, 14,
-                         text="⚖ Аукцион общий на регион — купи/продай с любой базы",
-                         fill=DIM, font=("Arial", 9))
-        by_short = {m["short"]: m for m in self._markers}
-        for a, b in ROADS:
-            if a in by_short and b in by_short:
-                x1, y1 = self._xy(by_short[a]["x"], by_short[a]["y"], w, h)
-                x2, y2 = self._xy(by_short[b]["x"], by_short[b]["y"], w, h)
-                self.create_line(x1, y1, x2, y2, fill=ROAD, width=2)
+        real = self._bg_src is not None and ImageTk is not None
+        if real:
+            if self._bg_size != (w, h) or self._bg_photo is None:
+                img = self._bg_src.resize((w, h))
+                self._bg_photo = ImageTk.PhotoImage(img)
+                self._bg_size = (w, h)
+            self.create_image(0, 0, image=self._bg_photo, anchor="nw")
+        else:
+            self.create_rectangle(0, 0, w, h * 0.33, fill=BAND_N, outline="")
+            self.create_rectangle(0, h * 0.33, w, h * 0.66, fill=BAND_M,
+                                  outline="")
+            self.create_rectangle(0, h * 0.66, w, h, fill=BAND_S, outline="")
+            for i in range(1, 10):
+                gx = pad + i / 10 * (w - 2 * pad)
+                gy = pad + i / 10 * (h - 2 * pad - 8)
+                self.create_line(gx, 0, gx, h, fill=GRID)
+                self.create_line(0, gy, w, gy, fill=GRID)
+            self.create_text(w - 10, 14, text="СЕВЕР · Припять", fill=DIM,
+                             anchor="ne", font=("Arial", 9, "bold"))
+            self.create_text(w - 10, h - 10, text="ЮГ · новички", fill=DIM,
+                             anchor="se", font=("Arial", 9, "bold"))
+            self.create_text(12, 14, text="⬆ С", fill=TEXT, anchor="nw",
+                             font=("Arial", 11, "bold"))
+            by_short = {m["short"]: m for m in self._markers}
+            for a, b in ROADS:
+                if a in by_short and b in by_short:
+                    x1, y1 = self._xy(by_short[a]["x"], by_short[a]["y"], w, h)
+                    x2, y2 = self._xy(by_short[b]["x"], by_short[b]["y"], w, h)
+                    self.create_line(x1, y1, x2, y2, fill=ROAD, width=2)
+        self._banner(w / 2, 14,
+                     "⚖ Аукцион общий на регион — купи/продай с любой базы")
+        if self._calibrate:
+            self._banner(w / 2, 34,
+                         "🎯 КАЛИБРОВКА: перетащи маркеры на истинные места")
         # маршрут
         pts = []
         for st in self._route:
@@ -157,6 +235,9 @@ class MapView(tk.Canvas):
             px, py = self._xy(m["x"], m["y"], w, h)
             self._pos[m["station"]] = (px, py)
             active = m.get("num") is not None
+            if self._calibrate:
+                self.create_rectangle(px - 14, py - 14, px + 14, py + 14,
+                                      outline=GOLD, dash=(3, 3))
             self.create_oval(px - 10, py - 10, px + 10, py + 10,
                              fill=m["color"], outline=GOLD if active else BG,
                              width=3 if active else 2)
@@ -165,14 +246,15 @@ class MapView(tk.Canvas):
                                  fill=GOLD, outline="")
                 self.create_text(px, py - 21, text=str(m["num"]),
                                  fill="#111111", font=("Arial", 10, "bold"))
-            self.create_text(px, py + 20, text=m["short"], fill=TEXT,
-                             font=("Arial", 10, "bold"))
+            self._banner(px, py + 20, m["short"],
+                           font=("Arial", 10, "bold"))
             if m.get("badge"):
                 self.create_text(px, py + 34, text=m["badge"], fill="#7CE38B",
                                  font=("Arial", 9, "bold"))
-        # своя база
         if self._home_txt:
             self.create_text(w - 12, h - 30, text="🏠 " + self._home_txt,
                              fill=TEXT, anchor="se", font=("Arial", 10, "bold"))
-        self.create_text(12, h - 10, text="схема, не масштаб",
+        self.create_text(12, h - 10,
+                         text="реальная карта: STALZONE Wiki" if real
+                         else "схема, не масштаб",
                          fill=DIM, anchor="sw", font=("Arial", 8))

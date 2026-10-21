@@ -54,13 +54,17 @@ def main() -> None:
         return
 
     from szmarket import catalog as catmod
-    from szmarket.arbitrage import find_deals, summarize_sales
+    from szmarket.arbitrage import (
+        QLT_NAMES, find_deals, summarize_by_quality, summarize_sales)
     from szmarket.config import Settings
-    from szmarket.craft import evaluate_all, load_recipes
+    from szmarket.craft import evaluate_all, find_swaps, load_recipes
     from szmarket.eapi import EapiClient, EapiError, TokenBucket
+    from szmarket.mirror import MirrorClient
     from szmarket.route import build_trip, load_map
     from szmarket.snipe import analyze_ending
     from szmarket.store import MarketStore
+    from szmarket.zonemap import (apply_calibration, ensure_background,
+                                  load_calibration, save_calibration)
     from ui.mapview import MapView, fmt_short
 
     s = Settings.load()
@@ -97,6 +101,20 @@ def main() -> None:
             low = (rec.station or "").lower()
             return ("зари" in low) or ("заря" in low)
         return rec.station == opt
+
+    # обратимые обмены 1:1 («качели»): купи дешёвую сторону, обменяй, продай
+    swap_pairs = {(d["a"], d["b"]) for d in find_swaps(recipes)}
+
+    def station_short(st: str) -> str:
+        info = settlements.get(st)
+        if info and info.get("short"):
+            return str(info["short"])
+        return st.replace("Бартер · ", "")
+
+    def is_swap(product_id: str, inputs: list[str]) -> bool:
+        return (len(inputs) == 1
+                and (min(inputs[0], product_id), max(inputs[0], product_id))
+                in swap_pairs)
 
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("dark-blue")
@@ -145,7 +163,7 @@ def main() -> None:
     ctk.CTkLabel(top, text="SZMarket", font=ctk.CTkFont(size=17, weight="bold"),
                  text_color=ACCENT).pack(side="left", padx=(8, 2))
     creds_txt = ("✅ EAPI" if s.has_credentials
-                 else "⛔ Нет ключей (.env)")
+                 else "🪞 Зеркало (без ключа)")
     ctk.CTkLabel(top, text=creds_txt).pack(side="left", padx=8)
     ctk.CTkLabel(top, text="Регион:").pack(side="left", padx=(12, 2))
     region_var = ctk.StringVar(value=region_default)
@@ -210,13 +228,61 @@ def main() -> None:
     ctk.CTkOptionMenu(map_head, variable=start_var, values=map_starts,
                       width=220, command=lambda _v: refresh_map()
                       ).pack(side="left", padx=4)
+    mapbg_btn = ctk.CTkButton(map_head, text="🛰 Реальная карта", width=140,
+                              command=lambda: toggle_map_bg())
+    mapbg_btn.pack(side="left", padx=4)
+    calib_btn = ctk.CTkButton(map_head, text="🎯 Калибровка", width=130,
+                              command=lambda: toggle_calibrate())
+    calib_btn.pack(side="left", padx=4)
     hover_var = ctk.StringVar(value="")
     ctk.CTkLabel(map_head, textvariable=hover_var,
                  font=ctk.CTkFont(size=11)).pack(side="left", padx=12)
+    map_state = {"bg": False, "bg_path": None, "calib": load_calibration(),
+                 "calibrating": False}
     map_body = ctk.CTkFrame(map_frame)
     map_body.pack(fill="both", expand=True, padx=4, pady=(0, 4))
+    def on_marker_move(st: str, x: float, y: float) -> None:  # главный поток
+        map_state["calib"][st] = [round(x, 4), round(y, 4)]
+        save_calibration(map_state["calib"])
+        set_status(f"🎯 {station_short(st)}: точка сохранена.")
+
+    def toggle_map_bg() -> None:  # главный поток
+        if map_state["bg"]:
+            map_state["bg"] = False
+            map_view.set_background(None)
+            mapbg_btn.configure(text="🛰 Реальная карта")
+            return
+        mapbg_btn.configure(text="⏳ Загрузка…")
+
+        def load() -> None:
+            path = map_state["bg_path"] or ensure_background()
+            app.after(0, lambda: _bg_ready(path))
+
+        def _bg_ready(path: Any) -> None:
+            if path is None:
+                mapbg_btn.configure(text="🛰 Реальная карта")
+                log("⚠ Не скачалась карта Wiki (нет сети/PIL?). Остаюсь на схеме.")
+                return
+            map_state["bg"] = True
+            map_state["bg_path"] = path
+            map_view.set_background(path)
+            mapbg_btn.configure(text="🗺 Схема")
+            set_status("Реальная карта загружена. Включи 🎯 Калибровку "
+                       "и перетащи маркеры на истинные места (один раз).")
+
+        run_bg(load)
+
+    def toggle_calibrate() -> None:  # главный поток
+        on = not map_state["calibrating"]
+        map_state["calibrating"] = on
+        map_view.set_calibrate(on)
+        calib_btn.configure(text="✅ Готово" if on else "🎯 Калибровка")
+        if on:
+            set_status("Калибровка: перетаскивай маркеры. "
+                       "Подсказки где искать — кликни по поселению.")
+
     map_view = MapView(map_body, on_select=lambda st: station_popup(st),
-                       hover_var=hover_var)
+                       hover_var=hover_var, on_move=on_marker_move)
     map_view.pack(side="left", fill="both", expand=True, padx=(0, 4))
     steps_box = ctk.CTkScrollableFrame(map_body, label_text="Маршрут",
                                        width=380)
@@ -365,10 +431,12 @@ def main() -> None:
         show_rows(rows)
 
     # ---- фоновые действия --------------------------------------------------
-    def make_client(region: str) -> EapiClient:
+    def make_client(region: str) -> Any:
         st = Settings.load()  # перечитываем .env при каждом действии
         if not st.has_credentials:
-            raise EapiError("Нет ключей API: скопируйте .env.example в .env")
+            log("🪞 Ключа нет — беру данные из зеркала "
+                "(может отставать от игры).")
+            return MirrorClient(region=region or st.region)
         return EapiClient(st.base_url, st.client_id, st.client_secret,
                           region=region or st.region,
                           min_gap=st.min_gap, max_retries=4,
@@ -434,8 +502,11 @@ def main() -> None:
                              "sub": f"Мало данных ({sm['count']} продаж, надо {ms}). "
                                     f"Нажмите «Обновить цены»."})
                 continue
+            qb = summarize_by_quality(
+                store.recent_sales(iid, region, 2000))
             deals = find_deals(store.latest_lots(iid, region), sm,
-                               min_sales=ms, min_velocity=0.5)
+                               min_sales=ms, min_velocity=0.5,
+                               qlt_summaries=qb)
             head = (f"Продаж: {sm['count']} · медиана {_fmt_money(sm['median'])} "
                     f"· P25 {_fmt_money(sm['p25'])}")
             if not deals:
@@ -444,12 +515,15 @@ def main() -> None:
                 continue
             for d in deals[:3]:
                 total += d["profit_total"]
+                q = d.get("qlt")
+                qtier = (f" · тир {q} ({QLT_NAMES.get(q, '?')})"
+                         if q is not None else "")
                 rows.append({
                     "icon": iid,
                     "title": f"{name_of(iid)} ×{d['amount']} → "
                              f"+{_fmt_money(d['profit_total'])}",
                     "sub": (f"Купить за {_fmt_money(d['unit_buy'] * d['amount'])} "
-                            f"(+{d['margin'] * 100:.1f}%) · {head}")})
+                            f"(+{d['margin'] * 100:.1f}%){qtier} · {head}")})
         prefetch_icons([r.get("icon", "") for r in rows])
         show_rows(rows or [{"title": "Список пуст.",
                             "sub": "Добавьте предметы поиском выше."}])
@@ -464,10 +538,13 @@ def main() -> None:
         ms = p["min_sales"]
         rows: list[dict] = []
         for iid in p["items"]:
-            sm = summarize_sales(store.recent_sales(iid, region, 2000))
+            recs = store.recent_sales(iid, region, 2000)
+            sm = summarize_sales(recs)
+            qb = summarize_by_quality(recs)
             for h in analyze_ending(store.latest_lots(iid, region), sm,
-                                    max_hours=hours, min_sales=ms):
-                if h["verdict"] == "buyout":
+                                    max_hours=hours, min_sales=ms,
+                                    qlt_summaries=qb):
+                if h["buyout_ok"]:
                     action = (f"🔥 ВЫКУПАЙ за {_fmt_money(h['buy_total'])} · "
                               f"профит {_fmt_money(h['profit_total'])} "
                               f"(+{h['margin'] * 100:.1f}%)")
@@ -475,11 +552,14 @@ def main() -> None:
                     action = (f"✋ СТАВЬ максимум до {_fmt_money(h['max_buy_total'])} "
                               f"(след. ставка {_fmt_money(h['min_next_bid'])}) · "
                               f"профит {_fmt_money(h['profit_bid'])}")
+                q = h.get("qlt")
+                qtier = (f" · тир {q} ({QLT_NAMES.get(q, '?')})"
+                         if q is not None else "")
                 rows.append({
                     "icon": iid, "_left": h["time_left_sec"],
                     "title": (f"{name_of(iid)} ×{h['amount']} — "
                               f"конец через {h['time_left']} ⏰"),
-                    "sub": action})
+                    "sub": action + qtier})
         rows.sort(key=lambda r: r.pop("_left"))
         if not rows:
             rows = [{"title": f"Лотов с концом < {hours:g} ч и профитом нет.",
@@ -539,7 +619,8 @@ def main() -> None:
                 sell[iid] = sm["median"]
         sales_counts = counts
         craft_evs = evaluate_all(picked, buy, sell,
-                                 sales_counts=counts, min_sales=ms)
+                                 sales_counts=counts, min_sales=ms,
+                                 chain_depth=2)
         prefetch_icons([e["product_id"] for e in craft_evs
                         if e["profit"] > 0][:20])
 
@@ -554,12 +635,16 @@ def main() -> None:
     def craft_row(ev: dict) -> dict:
         parts = []
         for b in ev["breakdown"][:4]:
+            via_txt = (f" ⛓{station_short(b['via'])}" if b.get("via")
+                       else "")
             parts.append(f"{display(b['item'])} ×{b['count']:g} = "
-                         f"{_fmt_money(b['total'])}")
+                         f"{_fmt_money(b['total'])}{via_txt}")
         if len(ev["breakdown"]) > 4:
             parts.append(f"…+{len(ev['breakdown']) - 4}")
         if ev.get("money"):
             parts.append(f"деньги {_fmt_money(ev['money'])}")
+        swap_txt = (" · 🔁 качели" if is_swap(
+            ev["product_id"], [b["item"] for b in ev["breakdown"]]) else "")
         kind_key = ("shop" if ev["kind"] == "barter" and not ev["breakdown"]
                     else ev["kind"])
         kind = KIND_ICON.get(kind_key, "•")
@@ -576,7 +661,8 @@ def main() -> None:
             "title": (f"{kind} {name_of(ev['product_id'])} ×{ev['units']:g} — "
                       f"профит {_fmt_money(ev['profit'])}"),
             "sub": (f"{ev['station']} · затраты {_fmt_money(ev['cost'])} · "
-                    f"ROI {ev['roi'] * 100:.0f}%{energy_txt}{skill_txt} · "
+                    f"ROI {ev['roi'] * 100:.0f}%{energy_txt}{skill_txt}"
+                    f"{swap_txt} · "
                     f"продаж: товар {n_prod}, входы ≥{n_in}\n"
                     f"Входы: {'; '.join(parts) if parts else '—'}"),
             "buttons": [("🗺 Карта", lambda e=ev: show_map_single(e)),
@@ -662,6 +748,7 @@ def main() -> None:
                           for e in tr.get("home", []))
         home_txt = (f"Своя база: {len(tr['home'])} кр. {fmt_short(home_profit)}"
                     if tr.get("home") else "")
+        apply_calibration(markers, map_state["calib"])
         map_view.set_markers(markers, route, home_txt)
         render_steps(tr)
         show_view("map")
@@ -729,8 +816,10 @@ def main() -> None:
         for w in steps_box.winfo_children():
             w.destroy()
         info = settlements.get(st, {})
-        _step_label(steps_box, f"📍 {info.get('short', st)}",
-                    f"Фракция: {info.get('faction', '—')}", color=ACCENT)
+        where = (f"Ищи: {info['location']}" if info.get("location")
+                 else f"Фракция: {info.get('faction', '—')}")
+        _step_label(steps_box, f"📍 {info.get('short', st)}", where,
+                    color=ACCENT)
         here = [e for e in craft_evs if e.get("station") == st
                 and e["profit"] > 0][:12]
         if not here:

@@ -86,6 +86,105 @@ def check_coverage(recipe: Recipe, sales_counts: dict[str, int],
     return thin
 
 
+def find_swaps(recipes: list[Recipe]) -> list[dict[str, Any]]:
+    """1:1 money-free barter pairs convertible BOTH ways (see-saw trades).
+
+    Returns [{a, b, a_to_b: [stations], b_to_a: [stations]}] with a < b.
+    """
+    fwd: dict[tuple[str, str], list[str]] = {}
+    for r in recipes:
+        if r.kind != "barter" or len(r.requirements) != 1:
+            continue
+        if (r.money or 0) > 0 or (r.product_count or 1) != 1:
+            continue
+        i, n = r.requirements[0]
+        if n != 1 or i == r.product_id:
+            continue
+        fwd.setdefault((i, r.product_id), []).append(r.station)
+    out = []
+    for (a, b), ab in sorted(fwd.items()):
+        ba = fwd.get((b, a))
+        if ba and a < b:
+            out.append({"a": a, "b": b, "a_to_b": ab, "b_to_a": ba})
+    return out
+
+
+def chain_unit_costs(
+    recipes: list[Recipe], buy_prices: dict[str, float], max_depth: int = 2
+) -> tuple[dict[str, float], dict[str, str]]:
+    """Cheapest unit cost per item: buy now OR craft via intermediates.
+
+    Returns (costs, sources): sources[item] is the '<station>' of the
+    cheapest crafting recipe (one level shown; deeper levels fold into
+    the cost recursively), absent for plain market buys. Cycle-guarded.
+    """
+    by_product: dict[str, list[Recipe]] = {}
+    for r in recipes:
+        by_product.setdefault(r.product_id, []).append(r)
+
+    def best(item: str, depth: int, stack: frozenset[str]
+             ) -> tuple[float | None, str]:
+        price = buy_prices.get(item)
+        src = ""
+        if depth >= max_depth or item in stack:
+            return price, src
+        for r in by_product.get(item, []):
+            total = float(r.money or 0.0)
+            ok = True
+            for i, n in r.requirements:
+                c, _ = best(i, depth + 1, stack | {item})
+                if c is None:
+                    ok = False
+                    break
+                total += c * n
+            if not ok:
+                continue
+            unit = total / max(r.product_count or 1, 1)
+            if price is None or unit < price:
+                price, src = unit, r.station
+        return price, src
+
+    costs: dict[str, float] = {}
+    sources: dict[str, str] = {}
+    for item in set(buy_prices) | set(by_product):
+        price, src = best(item, 0, frozenset())
+        if price is not None:
+            costs[item] = price
+            if src:
+                sources[item] = src
+    return costs, sources
+
+
+def check_coverage_chain(recipe: Recipe, sales_counts: dict[str, int],
+                         min_sales: int, recipes: list[Recipe],
+                         max_depth: int = 2) -> list[str]:
+    """Like check_coverage, but inputs may be covered via craftable raws.
+
+    An input is covered if it has enough sales itself OR at least one
+    recipe makes it from (recursively) covered raws.
+    """
+    by_product: dict[str, list[Recipe]] = {}
+    for r in recipes:
+        by_product.setdefault(r.product_id, []).append(r)
+
+    def covered(item: str, depth: int, stack: frozenset[str]) -> bool:
+        if sales_counts.get(item, 0) >= min_sales:
+            return True
+        if depth <= 0 or item in stack:
+            return False
+        return any(
+            all(covered(i, depth - 1, stack | {item})
+                for i, _ in r.requirements)
+            for r in by_product.get(item, [])
+        )
+
+    thin = [i for i, _ in recipe.requirements
+            if not covered(i, max_depth, frozenset())]
+    if sales_counts.get(recipe.product_id, 0) < min_sales:
+        thin.append(recipe.product_id)
+    return thin
+
+
 def evaluate_recipe(
     recipe: Recipe,
     buy_prices: dict[str, float],
@@ -94,6 +193,7 @@ def evaluate_recipe(
     yield_mult: float = 1.0,
     sales_counts: dict[str, int] | None = None,
     min_sales: int = 0,
+    via: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
     """Profit of one craft, or None if prices are missing or too thin.
 
@@ -110,11 +210,13 @@ def evaluate_recipe(
     units = recipe.product_count * yield_mult
     revenue = units * sell_price * (1.0 - fee)
     profit = revenue - cost
-    breakdown = [
-        {"item": i, "count": n, "unit": buy_prices[i],
-         "total": buy_prices[i] * n}
-        for i, n in recipe.requirements
-    ]
+    breakdown = []
+    for i, n in recipe.requirements:
+        row: dict[str, Any] = {"item": i, "count": n, "unit": buy_prices[i],
+                               "total": buy_prices[i] * n}
+        if via and via.get(i):
+            row["via"] = via[i]
+        breakdown.append(row)
     return {
         "recipe_id": recipe.id,
         "kind": recipe.kind,
@@ -142,14 +244,29 @@ def evaluate_all(
     yield_mult: float = 1.0,
     sales_counts: dict[str, int] | None = None,
     min_sales: int = 0,
+    chain_depth: int = 0,
 ) -> list[dict[str, Any]]:
-    """Evaluate every recipe that has full price coverage, best profit first."""
+    """Evaluate every recipe that has full price coverage, best profit first.
+
+    With chain_depth > 0, intermediates are costed at min(market, craft)
+    recursively, and coverage may come from craftable raws (marked ⛓ via).
+    """
+    costs, via = buy_prices, None
+    if chain_depth > 0:
+        costs, via = chain_unit_costs(recipes, buy_prices, chain_depth)
     results = []
     for r in recipes:
         if r.product_id not in sell_prices:
             continue
-        ev = evaluate_recipe(r, buy_prices, sell_prices[r.product_id], fee,
-                             yield_mult, sales_counts, min_sales)
+        if chain_depth > 0 and sales_counts is not None and min_sales > 0:
+            if check_coverage_chain(r, sales_counts, min_sales, recipes,
+                                    chain_depth):
+                continue
+            cov, ms = None, 0
+        else:
+            cov, ms = sales_counts, min_sales
+        ev = evaluate_recipe(r, costs, sell_prices[r.product_id], fee,
+                             yield_mult, cov, ms, via)
         if ev is not None:
             results.append(ev)
     results.sort(key=lambda x: x["profit"], reverse=True)

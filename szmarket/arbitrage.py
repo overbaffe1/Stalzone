@@ -85,6 +85,52 @@ def summarize_sales(
     }
 
 
+QLT_NAMES = {0: "обычное", 1: "необычное", 2: "особое", 3: "редкое",
+             4: "легендарное", 5: "эксклюзивное"}
+
+
+def extract_qlt(raw: Any) -> int | None:
+    """Quality tier (0..5) from a lot/sale `additional`, None if unknown."""
+    if not isinstance(raw, dict):
+        return None
+    add = raw.get("additional")
+    if not isinstance(add, dict):
+        return None
+    q = add.get("qlt")
+    return q if isinstance(q, int) and 0 <= q <= 5 else None
+
+
+def has_bonus(raw: Any) -> bool:
+    """True for buffed/rolled items (bonus_properties) — not median material."""
+    if not isinstance(raw, dict):
+        return False
+    add = raw.get("additional")
+    return isinstance(add, dict) and "bonus_properties" in add
+
+
+def record_qlt(rec: dict[str, Any]) -> int | None:
+    """Quality of a store record: pre-extracted 'qlt' or parsed 'raw'."""
+    if isinstance(rec.get("qlt"), int):
+        return rec["qlt"]
+    return extract_qlt(rec.get("raw"))
+
+
+def summarize_by_quality(
+    records: list[dict[str, Any]], price_key: str = "unit_price"
+) -> dict[str, Any]:
+    """{'mix': summary_all, 'qlt': {tier: summary}} (bonus items excluded)."""
+    plain = [r for r in records
+             if not (isinstance(r.get("raw"), dict) and has_bonus(r["raw"]))]
+    by_q: dict[int, list[dict[str, Any]]] = {}
+    for r in plain:
+        q = record_qlt(r)
+        if q is not None:
+            by_q.setdefault(q, []).append(r)
+    return {"mix": summarize_sales(plain, price_key),
+            "qlt": {q: summarize_sales(rs, price_key)
+                    for q, rs in by_q.items()}}
+
+
 def find_deals(
     lots: list[dict[str, Any]],
     summary: dict[str, Any],
@@ -92,23 +138,33 @@ def find_deals(
     min_margin: float = 0.05,
     min_sales: int = 10,
     min_velocity: float = 1.0,
+    qlt_summaries: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Score active lots against the sales summary. Best total profit first.
 
     Assumes we sell at `median`; skips illiquid items (few sales / slow).
+    With `qlt_summaries`, lots with a known quality tier are scored
+    against their own tier median (when liquid enough).
     """
     if summary.get("count", 0) < min_sales:
         return []
     if summary.get("velocity_per_day", 0.0) < min_velocity:
         return []
-    fair = summary["median"] * (1.0 - fee)  # net proceeds per unit at median
-    if fair <= 0:
+    fair_mix = summary["median"] * (1.0 - fee)  # net at mixed median
+    if fair_mix <= 0:
         return []
     deals = []
     for lot in lots:
         buy = lot.get("unit_price")
         if not buy or buy <= 0:
             continue
+        sm = summary
+        q = extract_qlt(lot.get("raw"))
+        if qlt_summaries and q is not None:
+            cand = (qlt_summaries.get("qlt") or {}).get(q)
+            if cand and cand.get("count", 0) >= min_sales:
+                sm = cand
+        fair = sm["median"] * (1.0 - fee)
         profit_unit = fair - float(buy)
         margin = profit_unit / float(buy)
         if margin < min_margin:
@@ -118,7 +174,8 @@ def find_deals(
             {
                 "unit_buy": float(buy),
                 "amount": amount,
-                "fair_median": summary["median"],
+                "fair_median": sm["median"],
+                "qlt": q,
                 "profit_unit": profit_unit,
                 "profit_total": profit_unit * amount,
                 "margin": margin,
@@ -134,4 +191,6 @@ __all__ = [
     "AUCTION_FEE", "BREAKEVEN_MULT",
     "net_proceeds", "required_sell_price",
     "median", "percentile", "summarize_sales", "find_deals",
+    "QLT_NAMES", "extract_qlt", "has_bonus", "record_qlt",
+    "summarize_by_quality",
 ]
