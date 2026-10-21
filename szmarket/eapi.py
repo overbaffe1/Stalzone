@@ -174,7 +174,6 @@ class EapiClient:
     def emission(self, region: str | None = None) -> Any:
         """Current/previous emission state (needs app token)."""
         return self._get(f"/{region or self.region}/emission")
-
     def profile(self, character: str,
                 region: str | None = None) -> Any:
         """Public character profile: alliance, stats, clan."""
@@ -231,3 +230,43 @@ class EapiClient:
             if len(batch) < limit:
                 break
         return out
+
+
+CLAN_SCORE_KEYS = ("rating", "score", "points", "clanPoints", "warPoints",
+                   "pvpScore", "totalScore", "experience", "exp")
+
+
+def clan_score(clan: Any) -> tuple[str, Any]:
+    """Очки клана для топа: (поле, значение). Поле автоопределяется."""
+    if not isinstance(clan, dict):
+        return ("—", None)
+    for key in CLAN_SCORE_KEYS:
+        val = clan.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            return (key, val)
+    return ("—", None)
+
+
+def stalker_stats(data: Any) -> dict[str, float]:
+    """Сводные боевые статы персонажа из EAPI-профиля (плоский dict)."""
+    out = {"kills": 0.0, "deaths": 0.0, "kd": 0.0, "shots": 0.0,
+           "hits": 0.0, "acc": 0.0, "mutants": 0.0, "npc": 0.0, "ach": 0.0}
+    if not isinstance(data, dict):
+        return out
+    raw = {s.get("id"): s.get("value") for s in data.get("stats", [])
+           if isinstance(s, dict)}
+
+    def num(key: str) -> float:
+        try:
+            return float(raw.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    kil, dea = num("kil"), num("dea")
+    fir, hit = num("sho-fir"), num("sho-hit")
+    out.update(kills=kil, deaths=dea, shots=fir, hits=hit,
+               mutants=num("mut-kil"), npc=num("npc-kil"),
+               ach=num("ach-points"),
+               kd=(kil / dea if dea else kil),
+               acc=(hit / fir * 100 if fir else 0.0))
+    return out

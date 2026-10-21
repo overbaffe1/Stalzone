@@ -58,8 +58,10 @@ def main() -> None:
     from szmarket.arbitrage import (
         QLT_NAMES, find_deals, summarize_by_quality, summarize_sales)
     from szmarket.config import Settings
-    from szmarket.craft import evaluate_all, find_swaps, load_recipes
-    from szmarket.eapi import EapiClient, EapiError, TokenBucket
+    from szmarket.craft import (build_chain, evaluate_all, find_swaps,
+                                  load_recipes)
+    from szmarket.eapi import (EapiClient, EapiError, TokenBucket,
+                               clan_score, stalker_stats)
     from szmarket.mirror import MirrorClient
     from szmarket.route import build_trip, load_map
     from szmarket.snipe import analyze_ending
@@ -198,6 +200,8 @@ def main() -> None:
                   command=lambda: open_stalker()).pack(side="right", padx=2)
     ctk.CTkButton(top, text="🏰 Кланы", width=90,
                   command=lambda: open_clans()).pack(side="right", padx=2)
+    ctk.CTkButton(top, text="🗺 Карта", width=90,
+                  command=lambda: open_map()).pack(side="right", padx=2)
 
     # ---- поиск + фильтры --------------------------------------------------
     search_fr = ctk.CTkFrame(app)
@@ -238,6 +242,11 @@ def main() -> None:
         pins_btn.configure(text="📌✓" if pins_only["on"] else "📌")
         render_craft_rows()
 
+    lim_var = ctk.StringVar(value="Все")
+    ctk.CTkOptionMenu(search_fr, variable=lim_var,
+                      values=["Все", "100", "50", "20"], width=80,
+                      command=lambda _v: render_craft_rows()).pack(
+                          side="left", padx=4)
     pins_btn = ctk.CTkButton(search_fr, text="📌", width=40,
                              command=lambda: toggle_pins_only())
     pins_btn.pack(side="left", padx=4)
@@ -270,9 +279,13 @@ def main() -> None:
     ctk.CTkOptionMenu(map_head, variable=start_var, values=map_starts,
                       width=220, command=lambda _v: refresh_map()
                       ).pack(side="left", padx=4)
-    mapbg_btn = ctk.CTkButton(map_head, text="🛰 Реальная карта", width=140,
-                              command=lambda: toggle_map_bg())
-    mapbg_btn.pack(side="left", padx=4)
+    ctk.CTkLabel(map_head, text="🗺 Карта:").pack(side="left", padx=(12, 2))
+    bg_var = ctk.StringVar(value="Схема")
+    bg_menu = ctk.CTkOptionMenu(map_head, variable=bg_var, values=["Схема"],
+                                width=230, command=lambda v: apply_bg_choice(v))
+    bg_menu.pack(side="left", padx=4)
+    ctk.CTkButton(map_head, text="📁", width=40,
+                  command=lambda: open_gamemap()).pack(side="left", padx=2)
     calib_btn = ctk.CTkButton(map_head, text="🎯 Калибровка", width=130,
                               command=lambda: toggle_calibrate())
     calib_btn.pack(side="left", padx=4)
@@ -282,9 +295,6 @@ def main() -> None:
     wpclr_btn = ctk.CTkButton(map_head, text="🧹", width=40,
                               command=lambda: clear_waypoints())
     wpclr_btn.pack(side="left", padx=2)
-    gamebg_btn = ctk.CTkButton(map_head, text="🎮 Из игры", width=100,
-                               command=lambda: open_gamemap())
-    gamebg_btn.pack(side="left", padx=4)
     hover_var = ctk.StringVar(value="")
     ctk.CTkLabel(map_head, textvariable=hover_var,
                  font=ctk.CTkFont(size=11)).pack(side="left", padx=12)
@@ -297,37 +307,98 @@ def main() -> None:
         save_calibration(map_state["calib"])
         set_status(f"🎯 {station_short(st)}: точка сохранена.")
 
-    def toggle_map_bg() -> None:  # главный поток
-        if map_state["bg"]:
-            map_state["bg"] = False
-            map_state["world"] = None
-            map_view.set_background(None)
-            map_view.set_coord_fn(None)
-            map_view.set_credit(None)
-            mapbg_btn.configure(text="🛰 Реальная карта")
+    _BG_SCHEME = "Схема"
+    _BG_WIKI = "🛰 Wiki (интернет)"
+    shipped_maps = gamemod.load_shipped()
+    bg_values = ([_BG_SCHEME, _BG_WIKI]
+                 + [m.get("title", m["id"]) for m in shipped_maps])
+    assembled_bg = {"title": None, "path": None}
+
+    def _sync_bg_menu(current: str) -> None:
+        vals = list(bg_values)
+        if assembled_bg["title"] and assembled_bg["title"] not in vals:
+            vals.append(assembled_bg["title"])
+        if current not in vals:
+            vals.append(current)
+        bg_menu.configure(values=vals)
+        bg_var.set(current)
+
+    def _clear_bg() -> None:
+        map_state["bg"] = False
+        map_state["world"] = None
+        map_view.set_background(None)
+        map_view.set_coord_fn(None)
+        map_view.set_credit(None)
+
+    def _wiki_ready(path: Any) -> None:
+        if path is None:
+            _sync_bg_menu(_BG_SCHEME)
+            set_status("Wiki не скачалась (нет сети/PIL?). Остаюсь на схеме.")
             return
-        mapbg_btn.configure(text="⏳ Загрузка…")
+        map_state["bg"] = True
+        map_state["bg_path"] = path
+        map_state["world"] = None
+        map_view.set_background(path)
+        map_view.set_coord_fn(None)
+        map_view.set_credit(None)
+        _sync_bg_menu(_BG_WIKI)
+        set_status("Wiki-карта загружена. Включи 🎯 Калибровку "
+                   "и перетащи маркеры (один раз).")
 
-        def load() -> None:
-            path = map_state["bg_path"] or ensure_background()
-            app.after(0, lambda: _bg_ready(path))
+    def _apply_shipped_bg(meta: dict) -> None:
+        map_state["bg"] = True
+        map_state["bg_path"] = meta["path"]
+        map_view.set_background(meta["path"])
+        map_view.set_credit(f"фон: файлы игры · {meta.get('title', '')}")
+        if gamemod.is_world(meta):
+            map_state["world"] = meta
 
-        def _bg_ready(path: Any) -> None:
-            if path is None:
-                mapbg_btn.configure(text="🛰 Реальная карта")
-                log("⚠ Не скачалась карта Wiki (нет сети/PIL?). Остаюсь на схеме.")
-                return
-            map_state["bg"] = True
-            map_state["bg_path"] = path
-            map_view.set_background(path)
+            def _coord(fx: float, fy: float, _m: dict = meta) -> Any:
+                w = gamemod.frac_to_world(_m, fx, fy)
+                if w is None:
+                    return None
+                return (f"🌍 x {w[0]:,.0f} · z {w[1]:,.0f} м"
+                        ).replace(",", " ")
+
+            map_view.set_coord_fn(_coord)
+            set_status(gamemod.describe(meta) + " Наведи курсор — покажу метры.")
+        else:
             map_state["world"] = None
             map_view.set_coord_fn(None)
-            map_view.set_credit(None)
-            mapbg_btn.configure(text="🗺 Схема")
-            set_status("Реальная карта загружена. Включи 🎯 Калибровку "
-                       "и перетащи маркеры на истинные места (один раз).")
+            set_status(gamemod.describe(meta))
+        _sync_bg_menu(meta.get("title", meta["id"]))
 
-        run_bg(load)
+    def apply_bg_choice(value: str) -> None:  # главный поток
+        if value == _BG_SCHEME:
+            _clear_bg()
+            _sync_bg_menu(_BG_SCHEME)
+            return
+        if value == _BG_WIKI:
+            set_status("Качаю Wiki-карту…")
+
+            def _load() -> None:
+                path = map_state["bg_path"] or ensure_background()
+                app.after(0, lambda: _wiki_ready(path))
+
+            run_bg(_load)
+            return
+        if (value == assembled_bg["title"] and assembled_bg["path"]):
+            map_state["bg"] = True
+            map_state["bg_path"] = assembled_bg["path"]
+            map_state["world"] = None
+            map_view.set_background(assembled_bg["path"])
+            map_view.set_coord_fn(None)
+            map_view.set_credit(None)
+            _sync_bg_menu(value)
+            set_status("Фон из папки игры. Откалибруй маркеры через 🎯.")
+            return
+        meta = next((m for m in shipped_maps
+                     if m.get("title", m["id"]) == value), None)
+        if meta is None:
+            return
+        _apply_shipped_bg(meta)
+
+    _sync_bg_menu(_BG_SCHEME)
 
     def toggle_calibrate() -> None:  # главный поток
         on = not map_state["calibrating"]
@@ -353,6 +424,22 @@ def main() -> None:
         else:
             map_frame.pack_forget()
             res_box.pack(fill="both", expand=True)
+
+    def open_map() -> None:  # главный поток
+        """Карта из шапки: рейс, а если его нет — все поселения."""
+        if current_trip:
+            refresh_map()
+            return
+        markers = [{"station": st, "x": info["x"], "y": info["y"],
+                    "color": info.get("color", "#888"),
+                    "short": info.get("short", "?")}
+                   for st, info in settlements.items()
+                   if not info.get("offmap")]
+        apply_calibration(markers, map_state["calib"])
+        map_view.set_markers(markers, [], "")
+        show_view("map")
+        set_status("Карта поселений. Фон меняется в «🗺 Карта: …» — "
+                   "там и Бар со спутника.")
 
     # ---- строки результатов (только главный поток!) -------------------------
     def _row(parent: Any, icon_id: str, title: str, sub: str,
@@ -483,7 +570,7 @@ def main() -> None:
 
     def do_search() -> None:
         q = search_var.get()
-        hits = catmod.search_items(q, cat, overrides, limit=12)
+        hits = catmod.search_items(q, cat, overrides, limit=30)
         if not hits:
             show_rows([{"title": f"«{q}» — ничего не найдено.",
                         "sub": "Попробуйте другое слово или введите ID вручную."}])
@@ -689,7 +776,7 @@ def main() -> None:
                                  sales_counts=counts, min_sales=ms,
                                  chain_depth=2)
         prefetch_icons([e["product_id"] for e in craft_evs
-                        if e["profit"] > 0][:20])
+                        if e["profit"] > 0][:150])
 
         def finish() -> None:
             render_craft_rows()
@@ -741,6 +828,7 @@ def main() -> None:
                     f"продаж: товар {n_prod}, входы ≥{n_in}\n"
                     f"Входы: {'; '.join(parts) if parts else '—'}"),
             "buttons": [("🗺 Карта", lambda e=ev: show_map_single(e)),
+                        ("⛓ Цепь", lambda e=ev: open_chain(e)),
                         ("✓ В рейсе" if in_trip else "+ Рейс",
                          lambda r=rid: toggle_trip(r)),
                         ("✓ 📌" if rid in pins else "+ 📌",
@@ -761,13 +849,46 @@ def main() -> None:
                      reverse=True)
         elif mode == "ROI":
             evs.sort(key=lambda e: e["roi"], reverse=True)
-        rows = [craft_row(ev) for ev in evs[:20]]
+        lim_n = {"Все": None, "100": 100, "50": 50, "20": 20}[lim_var.get()]
+        rows = [craft_row(ev) for ev in
+                (evs if lim_n is None else evs[:lim_n])]
         if not rows:
             rows = [{"title": "Прибыльных крафтов не нашлось.",
                      "sub": ("Цены свежие — рынок сейчас ровный, "
                              "или мало продаж для оценки. Загляните позже.")}]
         show_view("list")
         render_rows(rows, True)
+
+    def open_chain(ev: dict) -> None:  # главный поток
+        steps = build_chain(ev, name_of, _fmt_money)
+        win = ctk.CTkToplevel(app)
+        win.title(f"Цепочка: {name_of(ev['product_id'])}")
+        win.geometry("560x520")
+        win.transient(app)
+        box = ctk.CTkScrollableFrame(win, label_text="Что делать по шагам")
+        box.pack(fill="both", expand=True, padx=10, pady=10)
+        for st in steps:
+            fr = ctk.CTkFrame(box)
+            fr.pack(fill="x", padx=4, pady=2)
+            if st.get("icon"):
+                img = tk_icon(st["icon"], 36)
+                if img is not None:
+                    ctk.CTkLabel(fr, text="", image=img).pack(
+                        side="left", padx=6, pady=4)
+            ctk.CTkLabel(fr, text=st["text"], anchor="w", justify="left",
+                         wraplength=430,
+                         font=(title_font if st["text"].startswith("*")
+                               else sub_font)).pack(
+                                   side="left", padx=4, pady=4,
+                                   fill="x", expand=True)
+
+        def copy_chain() -> None:
+            app.clipboard_clear()
+            app.clipboard_append("\n".join(st["text"] for st in steps))
+            set_status("Цепочка скопирована.")
+
+        ctk.CTkButton(win, text="📋 Копировать цепочку",
+                      command=copy_chain).pack(pady=8)
 
     def toggle_trip(rid: str) -> None:  # главный поток
         if rid in trip:
@@ -1239,7 +1360,7 @@ def main() -> None:
     def open_stalker() -> None:  # главный поток
         win = ctk.CTkToplevel(app)
         win.title("Досье сталкера")
-        win.geometry("440x480")
+        win.geometry("480x660")
         win.transient(app)
         ctk.CTkLabel(win, text="Ник персонажа:", font=title_font
                      ).pack(padx=12, pady=(10, 0))
@@ -1247,34 +1368,41 @@ def main() -> None:
         ent = ctk.CTkEntry(win, textvariable=name_var, width=260,
                            placeholder_text="VasyaPupkin")
         ent.pack(padx=12, pady=4)
-        res_l = ctk.CTkLabel(win, text="", justify="left", wraplength=400)
+        res_l = ctk.CTkLabel(win, text="", justify="left", wraplength=440)
         res_l.pack(padx=12, pady=6)
+        ops_l = ctk.CTkLabel(win, text="", justify="left", wraplength=440)
+        ops_l.pack(padx=12, pady=6)
 
         def show(data: Any) -> None:
             if not isinstance(data, dict) or not data.get("username"):
                 res_l.configure(text="Не найден. Проверь ник и регион.")
+                ops_l.configure(text="")
                 return
-            st = {s.get("id"): s.get("value")
-                  for s in data.get("stats", [])
-                  if isinstance(s, dict)}
-            kil = float(st.get("kil") or 0)
-            dea = float(st.get("dea") or 0)
-            fir = float(st.get("sho-fir") or 0)
-            hit = float(st.get("sho-hit") or 0)
-            kd = kil / dea if dea else kil
-            acc = hit / fir * 100 if fir else 0.0
+            ss = stalker_stats(data)
             ally = ALLIANCE_RU.get(str(data.get("alliance")),
                                    data.get("alliance") or "?")
             last = str(data.get("lastLogin") or "")[:10]
-            res_l.configure(text="\n".join([
-                f"🪪 {data.get('username')} · {ally}",
-                f"Был в игре: {last or '?'}",
-                f"Фраги: {kil:.0f} · Смерти: {dea:.0f} · K/D: {kd:.2f}",
-                f"Точность: {acc:.1f}% (выстрелов: {fir:.0f})",
-                f"Мутанты: {st.get('mut-kil', 0)} · "
-                f"NPC: {st.get('npc-kil', 0)}",
+            clan = data.get("clan")
+            clan = clan if isinstance(clan, dict) else None
+            st = {s.get("id"): s.get("value")
+                  for s in data.get("stats", [])
+                  if isinstance(s, dict)}
+            head = [f"🪪 {data.get('username')} · {ally}"]
+            if clan:
+                head.append(f"🏰 [{clan.get('tag', '?')}] "
+                            f"{clan.get('name', '?')}")
+            head.append(f"Был в игре: {last or '?'}")
+            res_l.configure(text="\n".join(head + [
+                "— 📊 Бой —",
+                f"Фраги: {ss['kills']:.0f} · Смерти: {ss['deaths']:.0f} · "
+                f"K/D: {ss['kd']:.2f}",
+                f"Точность: {ss['acc']:.1f}% "
+                f"(выстрелов: {ss['shots']:.0f}, "
+                f"попаданий: {ss['hits']:.0f})",
+                f"Мутанты: {ss['mutants']:.0f} · NPC: {ss['npc']:.0f}",
+                "— ☢ Активность —",
                 f"В игре: {_fmt_playtime(st.get('pla-tim'))}",
-                f"Очки достижений: {st.get('ach-points', 0)}",
+                f"Очки достижений: {ss['ach']:.0f}",
             ]))
 
         def fetch() -> None:
@@ -1292,18 +1420,40 @@ def main() -> None:
                             raise RuntimeError(
                                 "нужен ключ API (зеркало не умеет профили)")
                         data = c.profile(name, region or None)
+                        try:
+                            ops = c.operations(name, region or None, limit=5)
+                        except Exception:  # noqa: BLE001
+                            ops = []
                     app.after(0, lambda: show(data))
+                    app.after(0, lambda: show_ops(ops))
                 except Exception as e:  # noqa: BLE001
                     app.after(0, lambda: res_l.configure(text=f"Ошибка: {e}"))
 
             threading.Thread(target=work, daemon=True).start()
+
+        def show_ops(payload: Any) -> None:
+            data = (payload.get("data", [])
+                    if isinstance(payload, dict) else payload) or []
+            if not data:
+                ops_l.configure(text="— 📜 Операции —\nопераций не нашлось")
+                return
+            lines = ["— 📜 Последние операции —"]
+            for s in data[:10]:
+                end = str(s.get("endTime") or "")[:10]
+                dur = float(s.get("sessionDurationSeconds") or 0)
+                lines.append(
+                    f"• {s.get('map', '?')} · {end} · "
+                    f"сложность {s.get('difficulty', '?')} · "
+                    f"{dur / 60:.0f} мин · "
+                    f"награда {s.get('difficultyReward', 0)}")
+            ops_l.configure(text="\n".join(lines))
 
         def fetch_ops() -> None:
             name = name_var.get().strip()
             if not name:
                 return
             region = region_var.get().strip()
-            res_l.configure(text="Ищу операции…")
+            ops_l.configure(text="Ищу операции…")
 
             def work() -> None:
                 try:
@@ -1313,23 +1463,9 @@ def main() -> None:
                             raise RuntimeError("нужен ключ API")
                         payload = c.operations(name, region or None,
                                                limit=10)
-                    data = (payload.get("data", [])
-                            if isinstance(payload, dict) else payload)
-                    if not data:
-                        raise RuntimeError("операций не нашлось")
-                    lines = []
-                    for s in data[:10]:
-                        end = str(s.get("endTime") or "")[:10]
-                        dur = float(s.get("sessionDurationSeconds") or 0)
-                        lines.append(
-                            f"• {s.get('map', '?')} · {end} · "
-                            f"сложность {s.get('difficulty', '?')} · "
-                            f"{dur / 60:.0f} мин · "
-                            f"награда {s.get('difficultyReward', 0)}")
-                    app.after(0, lambda: res_l.configure(
-                        text="\n".join(lines)))
+                    app.after(0, lambda: show_ops(payload))
                 except Exception as e:  # noqa: BLE001
-                    app.after(0, lambda: res_l.configure(text=f"Ошибка: {e}"))
+                    app.after(0, lambda: ops_l.configure(text=f"Ошибка: {e}"))
 
             threading.Thread(target=work, daemon=True).start()
 
@@ -1497,7 +1633,7 @@ def main() -> None:
             name = maps_var.get().strip()
             if not root or not name:
                 return
-            gamebg_btn.configure(text="⏳ Сборка…")
+            status_l.configure(text="⏳ Сборка…")
             status_l.configure(text="Сканирую тайлы…")
 
             def work() -> None:
@@ -1520,8 +1656,6 @@ def main() -> None:
                 except Exception as e:  # noqa: BLE001
                     app.after(0, lambda: status_l.configure(
                         text=f"Не собралось: {e}"))
-                    app.after(0, lambda: gamebg_btn.configure(
-                        text="🎮 Из игры"))
 
             threading.Thread(target=work, daemon=True).start()
 
@@ -1539,29 +1673,7 @@ def main() -> None:
             m = _ship_meta()
             if m is None:
                 return
-            map_state["bg"] = True
-            map_state["bg_path"] = m["path"]
-            map_view.set_background(m["path"])
-            mapbg_btn.configure(text="🗺 Схема")
-            gamebg_btn.configure(text="🎮 Из игры")
-            map_view.set_credit(f"фон: файлы игры · {m.get('title', '')}")
-            if gamemod.is_world(m):
-                map_state["world"] = m
-                meta = m
-
-                def _coord(fx, fy, _m=meta):
-                    w = gamemod.frac_to_world(_m, fx, fy)
-                    if w is None:
-                        return None
-                    return (f"🌍 x {w[0]:,.0f} · z {w[1]:,.0f} м"
-                            ).replace(",", " ")
-
-                map_view.set_coord_fn(_coord)
-                set_status(gamemod.describe(m) + " Наведи курсор — покажу метры.")
-            else:
-                map_state["world"] = None
-                map_view.set_coord_fn(None)
-                set_status(gamemod.describe(m))
+            _apply_shipped_bg(m)
             win.destroy()
 
         ship_menu.configure(command=refresh_ship_info)
@@ -1574,8 +1686,9 @@ def main() -> None:
             map_view.set_coord_fn(None)
             map_view.set_credit(None)
             map_view.set_background(meta["image"])
-            mapbg_btn.configure(text="🗺 Схема")
-            gamebg_btn.configure(text="🎮 Из игры")
+            assembled_bg["title"] = f"📁 {meta.get('map', 'из игры')}"
+            assembled_bg["path"] = meta["image"]
+            _sync_bg_menu(assembled_bg["title"])
             b = meta
             set_status(f"Фон из игры: {b.get('tiles', '?')} тайлов "
                        f"(x {b.get('min_x')}…{b.get('max_x')}, "
@@ -1598,6 +1711,17 @@ def main() -> None:
         ctk.CTkEntry(win, textvariable=q_var, width=300,
                      placeholder_text="Долг, Свобода, [DD]…").pack(padx=12,
                                                                   pady=4)
+        crow = ctk.CTkFrame(win)
+        crow.pack(fill="x", padx=12, pady=2)
+        ctk.CTkLabel(crow, text="Сорт:").pack(side="left", padx=(0, 4))
+        csort_var = ctk.StringVar(value="Как в API")
+        ctk.CTkOptionMenu(crow, variable=csort_var,
+                          values=["Как в API", "По очкам", "По уровню",
+                                  "По бойцам"], width=130,
+                          command=lambda _v: render()).pack(side="left")
+        cinfo_var = ctk.StringVar(value="")
+        ctk.CTkLabel(win, textvariable=cinfo_var, wraplength=520,
+                     justify="left").pack(padx=12, pady=2)
         box = ctk.CTkScrollableFrame(win, label_text="Топ кланов")
         box.pack(fill="both", expand=True, padx=10, pady=6)
         clans: list[dict] = []
@@ -1608,18 +1732,38 @@ def main() -> None:
             q = q_var.get().strip().lower()
             shown = [c for c in clans
                      if not q or q in str(c.get("name", "")).lower()
-                     or q in str(c.get("tag", "")).lower()][:60]
+                     or q in str(c.get("tag", "")).lower()]
+            mode = csort_var.get()
+
+            def _num(c: dict, key: str) -> float:
+                try:
+                    return float(c.get(key) or 0)
+                except (TypeError, ValueError):
+                    return 0.0
+
+            if mode == "По очкам":
+                shown.sort(key=lambda c: clan_score(c)[1] or 0.0,
+                           reverse=True)
+            elif mode == "По уровню":
+                shown.sort(key=lambda c: _num(c, "level"), reverse=True)
+            elif mode == "По бойцам":
+                shown.sort(key=lambda c: _num(c, "memberCount"), reverse=True)
+            shown = shown[:60]
             if not shown:
                 ctk.CTkLabel(box, text="Ничего не нашлось.").pack(padx=8,
                                                                   pady=8)
                 return
-            for c in shown:
+            for i, c in enumerate(shown, 1):
                 ally = ALLIANCE_RU.get(str(c.get("alliance")),
                                        c.get("alliance") or "?")
-                txt = (f"[{c.get('tag', '?')}] {c.get('name', '?')} · "
+                sfield, sval = clan_score(c)
+                score_txt = (f"🏆 {sfield}: {sval:g}"
+                             if sval is not None
+                             else "🏆 очки: API не отдаёт")
+                txt = (f"#{i} [{c.get('tag', '?')}] {c.get('name', '?')} · "
                        f"ур. {c.get('level', '?')} · "
                        f"бойцов: {c.get('memberCount', '?')} · {ally}\n"
-                       f"Лидер: {c.get('leader', '?')}")
+                       f"{score_txt} · Лидер: {c.get('leader', '?')}")
                 fr = ctk.CTkFrame(box)
                 fr.pack(fill="x", padx=6, pady=3)
                 ctk.CTkLabel(fr, text=txt, anchor="w", justify="left"
@@ -1661,9 +1805,16 @@ def main() -> None:
                                 break
                     clans.clear()
                     clans.extend(allc)
+                    sfield = next(
+                        (clan_score(c)[0] for c in allc
+                         if clan_score(c)[1] is not None), "—")
+                    info = (f"Всего кланов: {seen_total or len(allc)} · "
+                            f"очки API: {sfield} · "
+                            f"место = порядок в выдаче")
                     app.after(0, render)
                     app.after(0, lambda: set_status(
                         f"Кланов загружено: {len(allc)}"))
+                    app.after(0, lambda: cinfo_var.set(info))
                 except Exception as e:  # noqa: BLE001
                     app.after(0, lambda: set_status(f"Кланы: {e}"))
 
@@ -1869,7 +2020,7 @@ def main() -> None:
                  "6) «📋» в списке — досье предмета, 🎯 — цель для «🔔 Сторожа»\n"
                  "7) В шапке: ☢ выбросы Зоны · «🪪 Сталкер» — досье игрока · "
                  "«🛒 Список» — что докупить для рейса\n"
-                 "8) «🎮 Из игры» — фон карты из файлов твоей игры · "
+                 "8) «🗺 Карта» в шапке — спутник Бара и другие фоны · "
                  "«🏰 Кланы» — топ кланов · «⏱ Фарм» — ₽/час")},
         {"title": f"📦 Каталог: {len(cat)} предметов · рецептов: {len(recipes)}",
          "sub": ("Названия и иконки — из официальной базы EXBO. "

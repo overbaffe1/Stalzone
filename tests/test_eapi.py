@@ -115,3 +115,25 @@ def test_history_prices_listing_unwrap(monkeypatch):
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
     out = _client().history_all("g4lk0", limit=200, max_pages=1)
     assert out == payload["prices"]
+
+
+def test_clan_score_autodetect():
+    from szmarket.eapi import clan_score
+
+    assert clan_score({"name": "x", "rating": 1500}) == ("rating", 1500)
+    assert clan_score({"score": 42.5}) == ("score", 42.5)
+    assert clan_score({"level": 10}) == ("—", None)
+    assert clan_score(None) == ("—", None)
+
+
+def test_stalker_stats_math():
+    from szmarket.eapi import stalker_stats
+
+    ss = stalker_stats({"stats": [
+        {"id": "kil", "value": 100}, {"id": "dea", "value": 25},
+        {"id": "sho-fir", "value": 1000}, {"id": "sho-hit", "value": 250},
+        {"id": "mut-kil", "value": 7}]})
+    assert ss["kd"] == 4.0
+    assert ss["acc"] == 25.0
+    assert ss["mutants"] == 7.0
+    assert stalker_stats({})["kd"] == 0.0

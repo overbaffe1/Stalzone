@@ -271,3 +271,65 @@ def evaluate_all(
             results.append(ev)
     results.sort(key=lambda x: x["profit"], reverse=True)
     return results
+
+
+def build_chain(ev: dict[str, Any], name_of: Any,
+                fmt_money: Any) -> list[dict[str, Any]]:
+    """Пошаговая цепочка профита: [{icon, text}].
+
+    Первая строка начинается со ``*`` (итог), шаги — с ``-``:
+    удобно читать и копировать в Discord/чат игры.
+    """
+    prod = ev["product_id"]
+    units = float(ev.get("units") or 0)
+    roi = float(ev.get("roi") or 0) * 100
+    steps = [{
+        "icon": prod,
+        "text": (f"* {name_of(prod)} ×{units:g} → "
+                 f"+{fmt_money(ev.get('profit', 0))} (ROI {roi:.0f}%)"),
+    }]
+    n = 0
+    for b in ev.get("breakdown", []):
+        n += 1
+        iid = b["item"]
+        cnt = float(b.get("count") or 0)
+        total = fmt_money(b.get("total", 0))
+        if b.get("via"):
+            steps.append({
+                "icon": iid,
+                "text": (f"- {n}. ⛓ Скрафтить самому: {name_of(iid)} ×{cnt:g} "
+                         f"на {b['via']} = {total}"),
+            })
+        else:
+            steps.append({
+                "icon": iid,
+                "text": f"- {n}. Купить: {name_of(iid)} ×{cnt:g} = {total}",
+            })
+    if ev.get("money"):
+        n += 1
+        steps.append({
+            "icon": None,
+            "text": f"- {n}. 💵 NPC-деньги: {fmt_money(ev['money'])}",
+        })
+    n += 1
+    extras = []
+    if ev.get("energy"):
+        extras.append(f"⚡{float(ev['energy']):g}")
+    if ev.get("skill"):
+        extras.append(f"🎓{ev['skill']} {ev.get('skill_level', '')}".rstrip())
+    tail = f" ({', '.join(extras)})" if extras else ""
+    verb = {"craft": "Скрафтить", "hideout": "Скрафтить",
+            "barter": "Обменять", "shop": "Выкупить"}.get(
+                str(ev.get("kind", "craft")), "Получить")
+    steps.append({
+        "icon": prod,
+        "text": (f"- {n}. {verb}: {ev.get('station', '?')}{tail} → "
+                 f"{name_of(prod)} ×{units:g}"),
+    })
+    n += 1
+    steps.append({
+        "icon": prod,
+        "text": (f"- {n}. Продать: {name_of(prod)} ×{units:g} = "
+                 f"{fmt_money(ev.get('revenue', 0))} (комиссия 5% учтена)"),
+    })
+    return steps
