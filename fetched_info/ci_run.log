@@ -2,33 +2,41 @@
 platform linux -- Python 3.11.17, pytest-9.1.1, pluggy-1.7.0 -- /opt/hostedtoolcache/Python/3.11.17/x64/bin/python3
 cachedir: .pytest_cache
 rootdir: /home/runner/work/Stalzone/Stalzone
-collecting ... collected 23 items
+collecting ... collected 31 items
 
-tests/test_arbitrage.py::test_fee_math PASSED                            [  4%]
-tests/test_arbitrage.py::test_median_and_percentile PASSED               [  8%]
-tests/test_arbitrage.py::test_summarize_sales PASSED                     [ 13%]
-tests/test_arbitrage.py::test_find_deals_filters_and_sorts PASSED        [ 17%]
-tests/test_catalog_config.py::test_load_catalog PASSED                   [ 21%]
-tests/test_catalog_config.py::test_dotenv_and_settings PASSED            [ 26%]
-tests/test_catalog_config.py::test_stalzone_env_fallback_names PASSED    [ 30%]
-tests/test_catalog_config.py::test_stalzone_config_blob PASSED           [ 34%]
-tests/test_craft.py::test_recipe_cost_and_missing PASSED                 [ 39%]
-tests/test_craft.py::test_evaluate_recipe_profit_with_fee PASSED         [ 43%]
-tests/test_craft.py::test_evaluate_recipe_none_on_missing_price PASSED   [ 47%]
-tests/test_craft.py::test_evaluate_all_sorted_best_first PASSED          [ 52%]
-tests/test_eapi.py::test_auth_headers_and_url PASSED                     [ 56%]
-tests/test_eapi.py::test_lots_all_paginates_and_stops PASSED             [ 60%]
-tests/test_eapi.py::test_retry_on_429_then_success PASSED                [ 65%]
-tests/test_eapi.py::test_http_error_wrapped PASSED                       [ 69%]
-tests/test_eapi.py::test_client_requires_credentials PASSED              [ 73%]
-tests/test_eapi.py::test_history_prices_listing_unwrap PASSED            [ 78%]
-tests/test_store.py::test_fingerprint_ignores_mutable_price PASSED       [ 82%]
-tests/test_store.py::test_extract_numbers_variants PASSED                [ 86%]
-tests/test_store.py::test_save_lots_dedupes PASSED                       [ 91%]
-tests/test_store.py::test_shared_store_across_threads PASSED             [ 95%]
-tests/test_store.py::test_save_and_read_sales PASSED                     [100%]
+tests/test_arbitrage.py::test_fee_math PASSED                            [  3%]
+tests/test_arbitrage.py::test_median_and_percentile PASSED               [  6%]
+tests/test_arbitrage.py::test_summarize_sales PASSED                     [  9%]
+tests/test_arbitrage.py::test_find_deals_filters_and_sorts PASSED        [ 12%]
+tests/test_catalog_config.py::test_load_catalog PASSED                   [ 16%]
+tests/test_catalog_config.py::test_dotenv_and_settings PASSED            [ 19%]
+tests/test_catalog_config.py::test_stalzone_env_fallback_names PASSED    [ 22%]
+tests/test_catalog_config.py::test_stalzone_config_blob PASSED           [ 25%]
+tests/test_craft.py::test_recipe_cost_and_missing PASSED                 [ 29%]
+tests/test_craft.py::test_evaluate_recipe_profit_with_fee PASSED         [ 32%]
+tests/test_craft.py::test_evaluate_recipe_none_on_missing_price PASSED   [ 35%]
+tests/test_craft.py::test_evaluate_all_sorted_best_first PASSED          [ 38%]
+tests/test_eapi.py::test_auth_headers_and_url PASSED                     [ 41%]
+tests/test_eapi.py::test_lots_all_paginates_and_stops PASSED             [ 45%]
+tests/test_eapi.py::test_retry_on_429_then_success PASSED                [ 48%]
+tests/test_eapi.py::test_http_error_wrapped PASSED                       [ 51%]
+tests/test_eapi.py::test_client_requires_credentials PASSED              [ 54%]
+tests/test_eapi.py::test_history_prices_listing_unwrap PASSED            [ 58%]
+tests/test_search_money.py::test_display_name_priority PASSED            [ 61%]
+tests/test_search_money.py::test_search_items_ranking PASSED             [ 64%]
+tests/test_search_money.py::test_recipe_money_cost PASSED                [ 67%]
+tests/test_snipe.py::test_parse_time PASSED                              [ 70%]
+tests/test_snipe.py::test_format_left_ru PASSED                          [ 74%]
+tests/test_snipe.py::test_analyze_ending_math_and_sort PASSED            [ 77%]
+tests/test_snipe.py::test_analyze_ending_needs_liquidity PASSED          [ 80%]
+tests/test_store.py::test_fingerprint_ignores_mutable_price PASSED       [ 83%]
+tests/test_store.py::test_extract_numbers_variants PASSED                [ 87%]
+tests/test_store.py::test_save_lots_dedupes PASSED                       [ 90%]
+tests/test_store.py::test_shared_store_across_threads PASSED             [ 93%]
+tests/test_store.py::test_save_and_read_sales PASSED                     [ 96%]
+tests/test_ui_import.py::test_ui_module_imports_without_display PASSED   [100%]
 
-============================== 23 passed in 0.38s ==============================
+============================== 31 passed in 0.36s ==============================
 [smoke] clans EU: OK (dict)
 [smoke] lots y1q9: OK (5 rows, keys=['additional', 'amount', 'buyoutPrice', 'endTime', 'itemId', 'startPrice', 'startTime'])
 [smoke] history y1q9: OK (5 rows, keys=['additional', 'amount', 'price', 'time'])
