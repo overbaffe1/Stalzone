@@ -11,6 +11,7 @@ Endpoints used (all regions: RU / EU / NA / SEA):
 from __future__ import annotations
 
 import json
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -23,6 +24,43 @@ class EapiError(Exception):
         super().__init__(message)
         self.status = status
         self.body = body
+
+
+class TokenBucket:
+    """Client-side rate limiter mirroring EXBO's token bucket.
+
+    Official numbers (EXBO-Studio/stalzone-api#3, staff reply):
+    100 tokens per minute per app, auction requests cost 2 tokens
+    => max ~50 auction requests/minute sustained. Bursts up to the full
+    bucket capacity are allowed. Thread-safe: share one client/bucket
+    across fetcher threads.
+    """
+
+    def __init__(self, per_minute: float = 100.0, capacity: float | None = None):
+        self.rate = per_minute / 60.0
+        self.capacity = capacity if capacity is not None else per_minute
+        self.tokens = float(self.capacity)
+        self.updated = time.monotonic()
+        self._lock = threading.Lock()
+
+    def take(self, cost: float = 1.0, max_wait: float = 180.0) -> float:
+        """Block until `cost` tokens are available; returns seconds waited."""
+        waited = 0.0
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                self.tokens = min(self.capacity,
+                                  self.tokens + (now - self.updated) * self.rate)
+                self.updated = now
+                if self.tokens >= cost:
+                    self.tokens -= cost
+                    return waited
+                need = (cost - self.tokens) / self.rate
+            step = min(max(need, 0.01), 1.0)
+            if waited + step > max_wait:
+                raise EapiError("rate budget exhausted (bucket wait too long)")
+            time.sleep(step)
+            waited += step
 
 
 def _as_list(payload: Any) -> list[dict[str, Any]]:
@@ -48,9 +86,11 @@ class EapiClient:
         client_id: str,
         client_secret: str,
         region: str = "RU",
-        min_gap: float = 1.0,
+        min_gap: float = 0.1,
         timeout: float = 20.0,
         max_retries: int = 3,
+        bucket: TokenBucket | None = None,
+        request_cost: float = 2.0,
     ) -> None:
         if not client_id or not client_secret:
             raise ValueError("EapiClient needs client_id + client_secret")
@@ -61,7 +101,10 @@ class EapiClient:
         self.min_gap = min_gap
         self.timeout = timeout
         self.max_retries = max_retries
+        self.bucket = bucket or TokenBucket()
+        self.request_cost = request_cost
         self._last_ts = 0.0
+        self._ts_lock = threading.Lock()
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -72,8 +115,10 @@ class EapiClient:
         }
 
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        # Rate-limit politeness: minimal gap between requests.
-        wait = self.min_gap - (time.monotonic() - self._last_ts)
+        # Rate-limit politeness: token bucket first, tiny gap as a floor.
+        self.bucket.take(self.request_cost)
+        with self._ts_lock:
+            wait = self.min_gap - (time.monotonic() - self._last_ts)
         if wait > 0:
             time.sleep(wait)
         url = self.base_url + path

@@ -50,13 +50,22 @@ def load_dotenv(path: str | Path = ".env") -> dict[str, str]:
     return values
 
 
+# Official rate limits (EXBO-Studio/stalzone-api#3, staff reply):
+# 100 tokens per minute per app, auction requests cost 2 tokens
+# => max ~50 auction requests/minute sustained (bursts allowed).
+RATE_TOKENS_PER_MIN = 100.0
+RATE_AUCTION_COST = 2.0
+
+
 @dataclass
 class Settings:
     base_url: str = PROD_BASE_URL
     client_id: str = ""
     client_secret: str = ""
     region: str = "RU"
-    min_gap: float = 1.0
+    min_gap: float = 0.1
+    tokens_per_min: float = RATE_TOKENS_PER_MIN
+    auction_cost: float = RATE_AUCTION_COST
     db_path: str = "data/market.db"
 
     @staticmethod
@@ -95,7 +104,11 @@ class Settings:
             client_id=get("STALCRAFT_CLIENT_ID", "STALZONE_CLIENT_ID"),
             client_secret=get("STALCRAFT_CLIENT_SECRET", "STALZONE_CLIENT_SECRET"),
             region=get("STALCRAFT_REGION", "STALZONE_REGION", default="RU"),
-            min_gap=float(get("EAPI_MIN_GAP", default="1.0")),
+            min_gap=float(get("EAPI_MIN_GAP", default="0.1")),
+            tokens_per_min=float(get("EAPI_TOKENS_PER_MIN",
+                                     default=str(RATE_TOKENS_PER_MIN))),
+            auction_cost=float(get("EAPI_AUCTION_COST",
+                                   default=str(RATE_AUCTION_COST))),
             db_path=get("MARKET_DB", default="data/market.db"),
         )
 

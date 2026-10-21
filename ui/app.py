@@ -7,13 +7,18 @@
 
 Окно работает рядом с игрой: список предметов с иконками и русскими
 названиями, обновление цен из EAPI, выгодные лоты, крафты в плюс
-и лоты с истекающим сроком («снайпер»).
+и лоты с истекающим сроком («снайпер», включая ставки на торгах).
 
 Потоки: сеть и база — в фоновых потоках; все виджеты создаются
 и меняются ТОЛЬКО в главном потоке через app.after().
+
+v3: чекбоксы в списке, фильтр станций/поселений для крафтов,
+фоновая докачка ВСЕХ иконок с индикатором, кнопка «Копировать»,
+настройка минимального числа продаж, ставки (+5%), разбивка затрат.
 """
 from __future__ import annotations
 
+import concurrent.futures as cf
 import json
 import threading
 import traceback
@@ -34,6 +39,9 @@ def _load_json(path: str, default: Any) -> Any:
         return default
 
 
+KIND_ICON = {"craft": "🔨", "hideout": "🔨", "barter": "🔄", "shop": "🏪"}
+
+
 def main() -> None:
     try:
         import customtkinter as ctk
@@ -46,7 +54,7 @@ def main() -> None:
     from szmarket.arbitrage import find_deals, summarize_sales
     from szmarket.config import Settings
     from szmarket.craft import evaluate_all, load_recipes
-    from szmarket.eapi import EapiClient, EapiError
+    from szmarket.eapi import EapiClient, EapiError, TokenBucket
     from szmarket.snipe import analyze_ending
     from szmarket.store import MarketStore
 
@@ -58,17 +66,39 @@ def main() -> None:
     watch_data = _load_json("data/watchlist.json", {}) or {}
     watch_items: list[str] = list(
         watch_data.get("items") or ["g4lk0", "96430", "g5np", "y1q9"])
+    enabled: dict[str, bool] = dict(watch_data.get("enabled") or {})
     region_default = str(watch_data.get("region") or s.region)
 
     def name_of(iid: str) -> str:
         return catmod.display_name(iid, cat, overrides)
 
+    def display(iid: str) -> str:
+        nm = name_of(iid)
+        return nm if nm != iid else iid
+
+    # ---- станции/поселения для фильтра крафтов ---------------------------
+    stations = sorted({r.station for r in recipes if r.station})
+    ZARYA_OPT = "⭐ Своя база + База «Зари»"
+    station_options = [ZARYA_OPT, "Всё"] + stations
+
+    def station_match(rec: Any, opt: str) -> bool:
+        """Фильтр мест крафта/обмена. Своя база = убежище (Верстак, столы)."""
+        if opt == "Всё":
+            return True
+        if opt == ZARYA_OPT:
+            if rec.kind == "hideout":
+                return True
+            low = (rec.station or "").lower()
+            return ("зари" in low) or ("заря" in low)
+        return rec.station == opt
+
     ctk.set_appearance_mode("dark")
     app = ctk.CTk()
     app.title("SZMarket — аукцион STALCRAFT: крафты и сделки")
-    app.geometry("1040x720")
+    app.geometry("1120x760")
 
     img_cache: dict[str, Any] = {}
+    last_rows: list[dict] = []  # для кнопки «Копировать»
 
     def tk_icon(item_id: str, size: int = 44) -> Any | None:
         """CTkImage из кэша (вызывать ТОЛЬКО в главном потоке)."""
@@ -104,28 +134,39 @@ def main() -> None:
     ctk.CTkLabel(top, text="Часов до конца:").pack(side="left", padx=(12, 2))
     hours_var = ctk.StringVar(value="3")
     ctk.CTkEntry(top, textvariable=hours_var, width=50).pack(side="left")
+    ctk.CTkLabel(top, text="Мин. продаж:").pack(side="left", padx=(12, 2))
+    min_sales_var = ctk.StringVar(value="5")
+    ctk.CTkEntry(top, textvariable=min_sales_var, width=50).pack(side="left")
+    icons_var = ctk.StringVar(value="🖼 Иконки: …")
+    ctk.CTkLabel(top, textvariable=icons_var).pack(side="right", padx=8)
 
     # ---- поиск ----------------------------------------------------------
     search_fr = ctk.CTkFrame(app)
     search_fr.pack(fill="x", padx=10, pady=5)
     ctk.CTkLabel(search_fr, text="🔎 Найти:").pack(side="left", padx=8)
     search_var = ctk.StringVar()
-    search_entry = ctk.CTkEntry(search_fr, textvariable=search_var, width=240,
+    search_entry = ctk.CTkEntry(search_fr, textvariable=search_var, width=220,
                                 placeholder_text="аптечка, патрон 7.62…")
     search_entry.pack(side="left", padx=4)
     ctk.CTkButton(search_fr, text="Найти", width=80,
                   command=lambda: do_search()).pack(side="left", padx=4)
     ctk.CTkLabel(search_fr, text="ID вручную:").pack(side="left", padx=(16, 2))
     manual_var = ctk.StringVar()
-    ctk.CTkEntry(search_fr, textvariable=manual_var, width=110,
+    ctk.CTkEntry(search_fr, textvariable=manual_var, width=100,
                  placeholder_text="g4lk0").pack(side="left", padx=4)
     ctk.CTkButton(search_fr, text="＋ В список", width=100,
                   command=lambda: add_manual()).pack(side="left", padx=4)
+    # фильтр станций для крафтов
+    ctk.CTkLabel(search_fr, text="Где крафтить:").pack(side="left", padx=(16, 2))
+    station_var = ctk.StringVar(value=ZARYA_OPT)
+    ctk.CTkOptionMenu(search_fr, variable=station_var,
+                      values=station_options, width=220).pack(side="left", padx=4)
 
     # ---- середина: список + результаты ----------------------------------
     mid = ctk.CTkFrame(app)
     mid.pack(fill="both", expand=True, padx=10, pady=5)
-    watch_box = ctk.CTkScrollableFrame(mid, label_text="Мой список", width=330)
+    watch_box = ctk.CTkScrollableFrame(mid, label_text="Мой список (✔ = участвует)",
+                                       width=350)
     watch_box.pack(side="left", fill="both", padx=(0, 5))
     res_box = ctk.CTkScrollableFrame(mid, label_text="Результаты")
     res_box.pack(side="left", fill="both", expand=True)
@@ -147,9 +188,13 @@ def main() -> None:
                           command=btn_cmd).pack(side="right", padx=6)
 
     def render_rows(rows: list[dict], clear_first: bool = True) -> None:
+        nonlocal last_rows
         if clear_first:
             for w in res_box.winfo_children():
                 w.destroy()
+            last_rows = list(rows)
+        else:
+            last_rows = last_rows + list(rows)
         for r in rows:
             _row(res_box, r.get("icon", ""), r.get("title", ""),
                  r.get("sub", ""), r.get("btn"), r.get("cmd"))
@@ -160,12 +205,30 @@ def main() -> None:
     def log(msg: str) -> None:  # из любого потока
         app.after(0, lambda: render_rows([{"title": msg}], False))
 
+    def copy_results() -> None:  # главный поток
+        if not last_rows:
+            return
+        lines = []
+        for r in last_rows:
+            t = r.get("title", "")
+            sb = (r.get("sub", "") or "").replace("\n", " | ")
+            lines.append(f"{t} — {sb}" if sb else t)
+        app.clipboard_clear()
+        app.clipboard_append("\n".join(lines))
+        log("📋 Скопировано в буфер обмена.")
+
     # ---- список отслеживания (главный поток) -----------------------------
     def save_watch() -> None:
         Path("data").mkdir(exist_ok=True)
         Path("data/watchlist.json").write_text(json.dumps(
             {"region": region_var.get().strip() or s.region,
-             "items": watch_items}, ensure_ascii=False, indent=1), encoding="utf-8")
+             "items": watch_items,
+             "enabled": {i: bool(enabled.get(i, True)) for i in watch_items}},
+            ensure_ascii=False, indent=1), encoding="utf-8")
+
+    def toggle_item(iid: str, var: Any) -> None:
+        enabled[iid] = bool(var.get())
+        save_watch()
 
     def render_watch() -> None:
         for w in watch_box.winfo_children():
@@ -175,20 +238,35 @@ def main() -> None:
                          text="Список пуст.\nНайдите предмет выше\nи нажмите «＋ В список».").pack(padx=8, pady=8)
             return
         for iid in list(watch_items):
-            _row(watch_box, iid, name_of(iid), f"ID: {iid}",
-                 "✕", lambda i=iid: remove_item(i))
+            fr = ctk.CTkFrame(watch_box)
+            fr.pack(fill="x", padx=4, pady=3)
+            var = ctk.BooleanVar(value=bool(enabled.get(iid, True)))
+            ctk.CTkCheckBox(fr, text="", variable=var, width=26,
+                            command=lambda i=iid, v=var: toggle_item(i, v)
+                            ).pack(side="left", padx=(6, 0))
+            img = tk_icon(iid)
+            if img is not None:
+                ctk.CTkLabel(fr, text="", image=img).pack(side="left", padx=4, pady=4)
+            ctk.CTkLabel(fr, text=f"{name_of(iid)}\nID: {iid}",
+                         justify="left", anchor="w").pack(
+                             side="left", padx=4, pady=4, fill="x", expand=True)
+            ctk.CTkButton(fr, text="✕", width=40,
+                          command=lambda i=iid: remove_item(i)).pack(
+                              side="right", padx=6)
 
     def add_item(iid: str) -> None:
         iid = (iid or "").strip()
         if not iid or iid in watch_items:
             return
         watch_items.append(iid)
+        enabled[iid] = True
         save_watch()
         render_watch()
 
     def remove_item(iid: str) -> None:
         if iid in watch_items:
             watch_items.remove(iid)
+            enabled.pop(iid, None)
             save_watch()
             render_watch()
 
@@ -222,7 +300,9 @@ def main() -> None:
             raise EapiError("Нет ключей API: скопируйте .env.example в .env")
         return EapiClient(st.base_url, st.client_id, st.client_secret,
                           region=region or st.region,
-                          min_gap=max(st.min_gap, 1.0))
+                          min_gap=st.min_gap, max_retries=4,
+                          bucket=TokenBucket(per_minute=st.tokens_per_min),
+                          request_cost=st.auction_cost)
 
     def run_bg(fn: Any) -> None:
         threading.Thread(target=_guarded(fn), daemon=True).start()
@@ -236,41 +316,51 @@ def main() -> None:
         return wrap
 
     def clicked(fn: Any) -> None:
-        region = region_var.get().strip()
-        items = list(watch_items)
+        """Собрать параметры в главном потоке и запустить fn в фоне."""
+        params = {
+            "region": region_var.get().strip(),
+            "items": [i for i in list(watch_items) if enabled.get(i, True)],
+            "station": station_var.get(),
+        }
         try:
-            hours = float((hours_var.get() or "3").replace(",", "."))
+            params["hours"] = float((hours_var.get() or "3").replace(",", "."))
         except ValueError:
-            hours = 3.0
-        run_bg(lambda: fn(region, items, hours))
+            params["hours"] = 3.0
+        try:
+            params["min_sales"] = max(1, int(min_sales_var.get() or "5"))
+        except ValueError:
+            params["min_sales"] = 5
+        run_bg(lambda: fn(params))
 
-    def do_refresh(region: str, items: list[str], hours: float) -> None:
+    def do_refresh(p: dict) -> None:
+        items = p["items"]
         if not items:
-            log("Список пуст — добавьте предметы поиском выше.")
+            log("Список пуст (или все галочки сняты) — добавьте предметы поиском выше.")
             return
-        c = make_client(region)
+        c = make_client(p["region"])
         with EAPI_LOCK:
             for k, iid in enumerate(items, 1):
                 lots = c.lots_all(iid, max_pages=2)
                 n = store.save_lots(c.region, iid, lots)
                 sales = c.history_all(iid, max_pages=2)
                 m = store.save_sales(c.region, iid, sales)
-                log(f"[{k}/{len(items)}] {name_of(iid)}: "
+                log(f"[{k}/{len(items)}] {display(iid)}: "
                     f"лотов {len(lots)} (новых {n}), продаж {len(sales)}")
         log("✅ Готово. Теперь «Выгодные лоты» или «Скоро конец».")
 
-    def do_deals(region: str, items: list[str], hours: float) -> None:
-        region = region or s.region
+    def do_deals(p: dict) -> None:
+        region = p["region"] or s.region
+        ms = p["min_sales"]
         rows: list[dict] = []
-        for iid in items:
+        for iid in p["items"]:
             sm = summarize_sales(store.recent_sales(iid, region, 2000))
-            if sm["count"] < 5:
+            if sm["count"] < ms:
                 rows.append({"icon": iid, "title": name_of(iid),
-                             "sub": f"Мало данных ({sm['count']} продаж). "
+                             "sub": f"Мало данных ({sm['count']} продаж, надо {ms}). "
                                     f"Нажмите «Обновить цены»."})
                 continue
             deals = find_deals(store.latest_lots(iid, region), sm,
-                               min_sales=5, min_velocity=0.5)
+                               min_sales=ms, min_velocity=0.5)
             head = (f"Продаж: {sm['count']} · медиана {_fmt_money(sm['median'])} "
                     f"· P25 {_fmt_money(sm['p25'])}")
             if not deals:
@@ -288,21 +378,29 @@ def main() -> None:
         show_rows(rows or [{"title": "Список пуст.",
                             "sub": "Добавьте предметы поиском выше."}])
 
-    def do_snipe(region: str, items: list[str], hours: float) -> None:
-        region = region or s.region
+    def do_snipe(p: dict) -> None:
+        """Лоты с истекающим сроком: выкуп И ставки (+5% к текущей)."""
+        region = p["region"] or s.region
+        hours = p["hours"]
+        ms = p["min_sales"]
         rows: list[dict] = []
-        for iid in items:
+        for iid in p["items"]:
             sm = summarize_sales(store.recent_sales(iid, region, 2000))
             for h in analyze_ending(store.latest_lots(iid, region), sm,
-                                    max_hours=hours):
+                                    max_hours=hours, min_sales=ms):
+                if h["verdict"] == "buyout":
+                    action = (f"🔥 ВЫКУПАЙ за {_fmt_money(h['buy_total'])} · "
+                              f"профит {_fmt_money(h['profit_total'])} "
+                              f"(+{h['margin'] * 100:.1f}%)")
+                else:
+                    action = (f"✋ СТАВЬ максимум до {_fmt_money(h['max_buy_total'])} "
+                              f"(след. ставка {_fmt_money(h['min_next_bid'])}) · "
+                              f"профит {_fmt_money(h['profit_bid'])}")
                 rows.append({
                     "icon": iid, "_left": h["time_left_sec"],
                     "title": (f"{name_of(iid)} ×{h['amount']} — "
                               f"конец через {h['time_left']} ⏰"),
-                    "sub": (f"Выкуп {_fmt_money(h['buy_total'])} · "
-                            f"потолок для профита {_fmt_money(h['max_buy_total'])} · "
-                            f"профит {_fmt_money(h['profit_total'])} "
-                            f"(+{h['margin'] * 100:.1f}%)")})
+                    "sub": action})
         rows.sort(key=lambda r: r.pop("_left"))
         if not rows:
             rows = [{"title": f"Лотов с концом < {hours:g} ч и профитом нет.",
@@ -321,57 +419,81 @@ def main() -> None:
         newest = max(r.get("fetched_at", 0) or 0 for r in rows)
         return (_t.time() - newest) < max_age_h * 3600
 
-    def do_crafts(region: str, items: list[str], hours: float) -> None:
-        region = region or s.region
+    def do_crafts(p: dict) -> None:
+        """Крафты/обмен/покупки в плюс с фильтром станций и разбивкой затрат."""
+        region = p["region"] or s.region
+        ms = p["min_sales"]
+        station_opt = p["station"]
+        picked = [r for r in recipes if station_match(r, station_opt)]
         need: set[str] = set()
-        for r in recipes:
+        for r in picked:
             need.add(r.product_id)
             need.update(i for i, _ in r.requirements)
         missing = sorted(i for i in need if not _is_fresh(i, region))
         if missing:
-            log(f"📥 Докачиваю цены: {len(missing)} предметов (~{len(missing)} сек)…")
-            c = make_client(region)
+            log(f"📥 Докачиваю цены: {len(missing)} предметов (4 потока)…")
+            c = make_client(p["region"])
+            done = {"n": 0}
             with EAPI_LOCK:
-                for k, iid in enumerate(missing, 1):
+                def _one(iid: str) -> None:
                     try:
                         sales = c.history_all(iid, max_pages=1, limit=200)
                         store.save_sales(c.region, iid, sales)
                     except EapiError as e:
                         log(f"  ⚠ {display(iid)}: {e}")
-                    if k % 25 == 0 or k == len(missing):
-                        log(f"  … {k}/{len(missing)}")
+                    done["n"] += 1
+                    if done["n"] % 25 == 0 or done["n"] == len(missing):
+                        log(f"  … {done['n']}/{len(missing)}")
+                with cf.ThreadPoolExecutor(max_workers=4) as ex:
+                    list(ex.map(_one, missing))
         buy: dict[str, float] = {}
         sell: dict[str, float] = {}
+        sales_counts: dict[str, int] = {}
         for iid in need:
             sm = summarize_sales(store.recent_sales(iid, region, 2000))
+            sales_counts[iid] = sm["count"]
             if sm["count"] >= 3:
                 buy[iid] = sm["median"]
                 sell[iid] = sm["median"]
         rows: list[dict] = []
-        for ev in evaluate_all(recipes, buy, sell):
+        for ev in evaluate_all(picked, buy, sell,
+                               sales_counts=sales_counts, min_sales=ms):
             if ev["profit"] <= 0:
                 continue
-            money_txt = (f" + деньги {_fmt_money(ev['money'])}"
-                         if ev.get("money") else "")
+            parts = []
+            for b in ev["breakdown"][:4]:
+                parts.append(f"{display(b['item'])} ×{b['count']:g} = "
+                             f"{_fmt_money(b['total'])}")
+            if len(ev["breakdown"]) > 4:
+                parts.append(f"…+{len(ev['breakdown']) - 4}")
+            if ev.get("money"):
+                parts.append(f"деньги {_fmt_money(ev['money'])}")
+            kind_key = ("shop" if ev["kind"] == "barter" and not ev["breakdown"]
+                        else ev["kind"])
+            kind = KIND_ICON.get(kind_key, "•")
+            energy_txt = (f" · ⚡{ev['energy']:g}" if ev.get("energy") else "")
+            skill_txt = (f" · 🎓{ev['skill']} {ev['skill_level']}"
+                         if ev.get("skill") else "")
+            n_prod = sales_counts.get(ev["product_id"], 0)
+            n_in = min([sales_counts.get(b["item"], 0)
+                        for b in ev["breakdown"]] or [n_prod])
             rows.append({
                 "icon": ev["product_id"],
-                "title": (f"{name_of(ev['product_id'])} ×{ev['units']:g} — "
+                "title": (f"{kind} {name_of(ev['product_id'])} ×{ev['units']:g} — "
                           f"профит {_fmt_money(ev['profit'])}"),
-                "sub": (f"{ev['station']} · затраты {_fmt_money(ev['cost'])}"
-                        f"{money_txt} · ROI {ev['roi'] * 100:.0f}% "
-                        f"(цены = медиана продаж)")})
+                "sub": (f"{ev['station']} · затраты {_fmt_money(ev['cost'])} · "
+                        f"ROI {ev['roi'] * 100:.0f}%{energy_txt}{skill_txt} · "
+                        f"продаж: товар {n_prod}, входы ≥{n_in}\n"
+                        f"Входы: {'; '.join(parts) if parts else '—'}")})
             if len(rows) >= 20:
                 break
         if not rows:
             rows = [{"title": "Прибыльных крафтов не нашлось.",
-                     "sub": "Цены свежие — значит, рынок сейчас ровный. Загляните позже."}]
+                     "sub": ("Цены свежие — рынок сейчас ровный, "
+                             "или мало продаж для оценки. Загляните позже.")}]
         else:
             prefetch_icons([r.get("icon", "") for r in rows])
         show_rows(rows)
-
-    def display(iid: str) -> str:
-        nm = name_of(iid)
-        return nm if nm != iid else iid
 
     # ---- нижние кнопки -----------------------------------------------------
     btns = ctk.CTkFrame(app)
@@ -384,20 +506,49 @@ def main() -> None:
                   command=lambda: clicked(do_crafts)).pack(side="left", padx=5)
     ctk.CTkButton(btns, text="⏰ Скоро конец",
                   command=lambda: clicked(do_snipe)).pack(side="left", padx=5)
+    ctk.CTkButton(btns, text="📋 Копировать",
+                  command=copy_results).pack(side="left", padx=5)
     ctk.CTkButton(btns, text="Очистить",
                   command=lambda: render_rows([])).pack(side="right", padx=5)
+
+    # ---- фоновая докачка ВСЕХ иконок ---------------------------------------
+    def icons_bulk() -> None:
+        ids = [i for i, info in cat.items() if info.get("icon")]
+        total = len(ids)
+        missing = [i for i in ids
+                   if not (Path("data/icons") / f"{i}.png").exists()]
+        state = {"done": total - len(missing)}
+
+        def tick() -> None:
+            d = state["done"]
+            mark = " 🟢" if d >= total and total else " ⏳"
+            icons_var.set(f"🖼 Иконки: {d}/{total}{mark}")
+
+        app.after(0, tick)
+        if not missing:
+            return
+        with cf.ThreadPoolExecutor(max_workers=6) as ex:
+            for _ in ex.map(lambda i: iconsmod.icon_file(i, cat), missing):
+                state["done"] += 1
+                if state["done"] % 50 == 0:
+                    app.after(0, tick)
+        app.after(0, tick)
 
     # ---- старт ---------------------------------------------------------------
     render_watch()
     render_rows([
         {"title": "👋 Привет! Как пользоваться:",
-         "sub": ("1) Найдите предметы поиском и добавьте в список слева\n"
+         "sub": ("1) Найдите предметы поиском и добавьте в список слева "
+                 "(галочка ✔ = участвует в проверках)\n"
                  "2) «Обновить цены» — скачать лоты и продажи из игры\n"
-                 "3) «Выгодные лоты» / «Скоро конец» / «Крафты в плюс»")},
+                 "3) «Выгодные лоты» / «Скоро конец» / «Крафты в плюс»\n"
+                 "4) «📋 Копировать» — скопировать результаты текстом")},
         {"title": f"📦 Каталог: {len(cat)} предметов · рецептов: {len(recipes)}",
-         "sub": "Названия и иконки — из официальной базы EXBO."},
+         "sub": ("Названия и иконки — из официальной базы EXBO. "
+                 "Иконки докачиваются в фоне (статус справа вверху).")},
     ])
     search_entry.bind("<Return>", lambda _e: do_search())
+    threading.Thread(target=icons_bulk, daemon=True).start()
     app.mainloop()
     store.close()
 

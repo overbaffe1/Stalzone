@@ -1,0 +1,68 @@
+name: Research — live market scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      min_sales:
+        description: "Min sales per item to trust a median"
+        required: false
+        default: "10"
+      max_items:
+        description: "Fetch only first N items (0 = all ~1000, ~25 min)"
+        required: false
+        default: "0"
+      top:
+        description: "Winners re-checked against live lots"
+        required: false
+        default: "60"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: Stalzone_config
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run live market research
+        env:
+          STALCRAFT_CLIENT_ID: ${{ secrets.STALCRAFT_CLIENT_ID || secrets.STALZONE_CLIENT_ID }}
+          STALCRAFT_CLIENT_SECRET: ${{ secrets.STALCRAFT_CLIENT_SECRET || secrets.STALZONE_CLIENT_SECRET }}
+          STALCRAFT_REGION: ${{ secrets.STALCRAFT_REGION || secrets.STALZONE_REGION }}
+          STALZONE_CONFIG: ${{ secrets.STALZONE_CONFIG }}
+          RESEARCH_MIN_SALES: ${{ inputs.min_sales }}
+          RESEARCH_MAX_ITEMS: ${{ inputs.max_items }}
+          RESEARCH_TOP: ${{ inputs.top }}
+          MARKET_DB: fetched_info/research.db
+        run: |
+          set -eo pipefail
+          mkdir -p fetched_info
+          python3 tools/market_research.py 2>&1 | tee fetched_info/research_run.log
+
+      - name: Commit and push results
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fetched_info/research.json fetched_info/research.md fetched_info/research_run.log
+          git diff --cached --quiet || (git commit -m "research: live market scan [skip ci]" && git push origin HEAD:${GITHUB_REF_NAME})

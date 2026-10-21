@@ -86,6 +86,7 @@ def build_recipes(hideout: dict, barter: list) -> list[dict]:
             "productId": str(result[0]["item"]),
             "productCount": int(result[0].get("amount", 1)),
             "money": 0,
+            "energy": float(r.get("energy", 0) or 0),
             "requirements": [
                 {"itemId": str(g["item"]), "count": int(g.get("amount", 1))}
                 for g in r.get("ingredients", [])
@@ -107,6 +108,7 @@ def build_recipes(hideout: dict, barter: list) -> list[dict]:
                     "productId": str(rec.get("item")),
                     "productCount": 1,
                     "money": int(offer.get("cost", 0)),
+                    "energy": 0.0,
                     "requirements": [
                         {"itemId": str(g["item"]), "count": int(g.get("amount", 1))}
                         for g in offer.get("requiredItems", [])
