@@ -63,6 +63,26 @@ jobs:
           echo "secret visibility: STALCRAFT_*=${_HAS_CRAFT_ID}, STALZONE_*=${_HAS_ZONE_ID}, BLOB=${_HAS_BLOB}" | tee -a fetched_info/ci_run.log
           python3 tools/smoke_prod.py 2>&1 | tee -a fetched_info/ci_run.log
 
+      - name: Live market research (opt-in via [research] in commit message)
+        # Trigger: push a commit whose message contains "[research]" (full
+        # ~1000-item scan, ~30 min) or "[research:N]" (first N items, smoke).
+        if: contains(github.event.head_commit.message, '[research')
+        env:
+          STALCRAFT_CLIENT_ID: ${{ secrets.STALCRAFT_CLIENT_ID || secrets.STALZONE_CLIENT_ID }}
+          STALCRAFT_CLIENT_SECRET: ${{ secrets.STALCRAFT_CLIENT_SECRET || secrets.STALZONE_CLIENT_SECRET }}
+          STALCRAFT_REGION: ${{ secrets.STALCRAFT_REGION || secrets.STALZONE_REGION }}
+          STALZONE_CONFIG: ${{ secrets.STALZONE_CONFIG }}
+          MARKET_DB: fetched_info/research.db
+          RESEARCH_MIN_SALES: "10"
+          RESEARCH_TOP: "60"
+        run: |
+          set -eo pipefail
+          MSG="${{ github.event.head_commit.message }}"
+          N="$(printf '%s' "$MSG" | grep -o '\[research:[0-9][0-9]*\]' | grep -o '[0-9][0-9]*' | head -1)"
+          export RESEARCH_MAX_ITEMS="${N:-0}"
+          echo "research scope: MAX_ITEMS=$RESEARCH_MAX_ITEMS (0 = full scan)"
+          python3 tools/market_research.py 2>&1 | tee fetched_info/research_run.log
+
       - name: Commit and push results
         if: always()
         run: |
