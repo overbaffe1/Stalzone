@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import concurrent.futures as cf
+import datetime as dt
 import json
 import threading
 import traceback
@@ -81,7 +82,12 @@ def main() -> None:
     enabled: dict[str, bool] = dict(watch_data.get("enabled") or {})
     targets: dict[str, float] = {k: float(v) for k, v in
                                  (watch_data.get("targets") or {}).items()}
+    pins: set[str] = set(watch_data.get("pins") or [])
+    notes: dict[str, str] = {k: str(v) for k, v in
+                             (watch_data.get("notes") or {}).items()}
+    theme_mode = str(watch_data.get("theme") or "dark")
     region_default = str(watch_data.get("region") or s.region)
+    theme_state = {"mode": theme_mode}
 
     def name_of(iid: str) -> str:
         return catmod.display_name(iid, cat, overrides)
@@ -120,7 +126,7 @@ def main() -> None:
                 and (min(inputs[0], product_id), max(inputs[0], product_id))
                 in swap_pairs)
 
-    ctk.set_appearance_mode("dark")
+    ctk.set_appearance_mode(theme_mode)
     ctk.set_default_color_theme("dark-blue")
     app = ctk.CTk()
     app.title("SZMarket — аукцион STALCRAFT: крафты, сделки, карта")
@@ -169,6 +175,10 @@ def main() -> None:
     creds_txt = ("✅ EAPI" if s.has_credentials
                  else "🪞 Зеркало (без ключа)")
     ctk.CTkLabel(top, text=creds_txt).pack(side="left", padx=8)
+    emis_var = ctk.StringVar(value="☢ …")
+    ctk.CTkLabel(top, textvariable=emis_var).pack(side="left", padx=4)
+    ctk.CTkButton(top, text="🔄", width=36,
+                  command=lambda: refresh_emission()).pack(side="left")
     ctk.CTkLabel(top, text="Регион:").pack(side="left", padx=(12, 2))
     region_var = ctk.StringVar(value=region_default)
     ctk.CTkEntry(top, textvariable=region_var, width=60).pack(side="left")
@@ -180,6 +190,11 @@ def main() -> None:
     ctk.CTkEntry(top, textvariable=min_sales_var, width=50).pack(side="left")
     icons_var = ctk.StringVar(value="🖼 Иконки: …")
     ctk.CTkLabel(top, textvariable=icons_var).pack(side="right", padx=8)
+    theme_btn = ctk.CTkButton(top, text="🌙", width=40,
+                              command=lambda: toggle_theme())
+    theme_btn.pack(side="right", padx=2)
+    ctk.CTkButton(top, text="🪪 Сталкер", width=100,
+                  command=lambda: open_stalker()).pack(side="right", padx=2)
 
     # ---- поиск + фильтры --------------------------------------------------
     search_fr = ctk.CTkFrame(app)
@@ -213,6 +228,16 @@ def main() -> None:
                       values=["⚡∞", "⚡≤1000", "⚡≤500", "⚡≤300"], width=95,
                       command=lambda _v: render_craft_rows()).pack(
                           side="left", padx=4)
+    pins_only = {"on": False}
+
+    def toggle_pins_only() -> None:  # главный поток
+        pins_only["on"] = not pins_only["on"]
+        pins_btn.configure(text="📌✓" if pins_only["on"] else "📌")
+        render_craft_rows()
+
+    pins_btn = ctk.CTkButton(search_fr, text="📌", width=40,
+                             command=lambda: toggle_pins_only())
+    pins_btn.pack(side="left", padx=4)
 
     # ---- середина: список + результаты/карта -------------------------------
     mid = ctk.CTkFrame(app)
@@ -377,7 +402,10 @@ def main() -> None:
             {"region": region_var.get().strip() or s.region,
              "items": watch_items,
              "enabled": {i: bool(enabled.get(i, True)) for i in watch_items},
-             "targets": {i: targets[i] for i in watch_items if i in targets}},
+             "targets": {i: targets[i] for i in watch_items if i in targets},
+             "pins": sorted(pins),
+             "notes": {i: notes[i] for i in watch_items if i in notes},
+             "theme": theme_state["mode"]},
             ensure_ascii=False, indent=1), encoding="utf-8")
 
     def toggle_item(iid: str, var: Any) -> None:
@@ -659,6 +687,14 @@ def main() -> None:
                        if n else "Прибыльных крафтов нет.")
         app.after(0, finish)
 
+    def toggle_pin(rid: str) -> None:  # главный поток
+        if rid in pins:
+            pins.discard(rid)
+        else:
+            pins.add(rid)
+        save_watch()
+        render_craft_rows()
+
     def craft_row(ev: dict) -> dict:
         parts = []
         for b in ev["breakdown"][:4]:
@@ -694,7 +730,9 @@ def main() -> None:
                     f"Входы: {'; '.join(parts) if parts else '—'}"),
             "buttons": [("🗺 Карта", lambda e=ev: show_map_single(e)),
                         ("✓ В рейсе" if in_trip else "+ Рейс",
-                         lambda r=rid: toggle_trip(r))],
+                         lambda r=rid: toggle_trip(r)),
+                        ("✓ 📌" if rid in pins else "+ 📌",
+                         lambda r=rid: toggle_pin(r))],
         }
 
     def render_craft_rows() -> None:  # главный поток
@@ -703,7 +741,8 @@ def main() -> None:
         lim = {"⚡∞": None, "⚡≤1000": 1000.0, "⚡≤500": 500.0,
                "⚡≤300": 300.0}[energy_var.get()]
         evs = [e for e in craft_evs if e["profit"] > 0
-               and (lim is None or (e.get("energy") or 0) <= lim)]
+               and (lim is None or (e.get("energy") or 0) <= lim)
+               and (not pins_only["on"] or e["recipe_id"] in pins)]
         mode = sort_var.get()
         if mode == "₽ за ⚡":
             evs.sort(key=lambda e: e["profit"] / max(e.get("energy") or 0, 1),
@@ -887,13 +926,25 @@ def main() -> None:
         save_watch()
         render_watch()
 
+    def get_note(iid: str) -> str:
+        return notes.get(iid, "")
+
+    def set_note(iid: str, text: str) -> None:
+        text = (text or "").strip()
+        if text:
+            notes[iid] = text
+        else:
+            notes.pop(iid, None)
+        save_watch()
+
     def open_dossier_win(iid: str) -> None:  # главный поток
         ctx = {"store": store,
                "region": region_var.get().strip() or s.region,
                "recipes": recipes, "fmt_money": _fmt_money,
                "name_of": name_of, "tk_icon": tk_icon,
                "station_short": station_short, "get_target": get_target,
-               "set_target": set_target}
+               "set_target": set_target, "get_note": get_note,
+               "set_note": set_note}
         open_dossier(app, ctx, iid)
 
     watchdog = {"on": False, "stop": None, "cool": {}, "region": ""}
@@ -1080,6 +1131,232 @@ def main() -> None:
         ctk.CTkButton(win, text="Прочитать из игры", command=do_read
                       ).pack(pady=8)
 
+    emis_state: dict[str, Any] = {"last_alert": ""}
+
+    def _emis_text(data: Any) -> tuple[str, bool]:
+        """(текст пилюли, идёт ли выброс сейчас)."""
+        if not isinstance(data, dict):
+            return "☢ ?", False
+        now = dt.datetime.now(dt.timezone.utc)
+
+        def _parse(val: Any) -> dt.datetime | None:
+            try:
+                return dt.datetime.fromisoformat(
+                    str(val).replace("Z", "+00:00"))
+            except ValueError:
+                return None
+
+        cur = _parse(data.get("currentStart"))
+        if cur is not None:
+            mins = max(0, int((now - cur).total_seconds() // 60))
+            return f"☢ ИДЁТ ({mins} мин)", True
+        prev = _parse(data.get("previousEnd") or data.get("previousStart"))
+        if prev is None:
+            return "☢ ?", False
+        mins = int((now - prev).total_seconds() // 60)
+        if mins < 0:
+            return "☢ скоро?", False
+        if mins < 60:
+            return f"☢ {mins} мин назад", False
+        return f"☢ {mins // 60} ч {mins % 60} мин назад", False
+
+    def emission_alert() -> None:  # главный поток
+        try:
+            import winsound
+
+            winsound.Beep(660, 300)
+            winsound.Beep(880, 400)
+        except Exception:  # noqa: BLE001
+            pass
+        win = ctk.CTkToplevel(app)
+        win.title("☢ Выброс!")
+        win.geometry("340x140")
+        win.attributes("-topmost", True)
+        ctk.CTkLabel(win, text="☢ В Зоне начался выброс!\nПрячься, сталкер.",
+                     font=title_font).pack(padx=12, pady=12)
+        ctk.CTkButton(win, text="Понял", width=100,
+                      command=win.destroy).pack(pady=4)
+
+    def refresh_emission(silent: bool = False) -> None:  # главный поток
+        region = region_var.get().strip()
+
+        def work() -> None:
+            try:
+                with EAPI_LOCK:
+                    c = make_client(region, quiet=True)
+                    data = (c.emission(region or None)
+                            if hasattr(c, "emission") else None)
+                if data is None:
+                    app.after(0, lambda: emis_var.set("☢ нужен ключ"))
+                    return
+                txt, active = _emis_text(data)
+                app.after(0, lambda: emis_var.set(txt))
+                if active:
+                    key = str(data.get("currentStart"))
+                    if emis_state["last_alert"] != key:
+                        emis_state["last_alert"] = key
+                        app.after(0, lambda: emission_alert())
+            except Exception as e:  # noqa: BLE001
+                app.after(0, lambda: emis_var.set("☢ ?"))
+                if not silent:
+                    app.after(0, lambda: set_status(f"Выброс: {e}"))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _emis_tick() -> None:  # главный поток, раз в 5 минут
+        refresh_emission(silent=True)
+        app.after(300000, _emis_tick)
+
+    ALLIANCE_RU = {"bandits": "Бандиты", "stalkers": "Сталкеры",
+                   "dolg": "Долг", "svoboda": "Свобода",
+                   "mercenaries": "Наёмники", "scientists": "Учёные",
+                   "military": "Военные", "monolith": "Монолит",
+                   "loners": "Одиночки"}
+
+    def _fmt_playtime(ns: Any) -> str:
+        try:
+            hours = float(ns) / 3.6e12
+        except (TypeError, ValueError):
+            return "?"
+        if hours < 1:
+            return f"~{hours * 60:.0f} мин"
+        if hours < 48:
+            return f"~{hours:.0f} ч"
+        return f"~{hours / 24:.0f} дн"
+
+    def open_stalker() -> None:  # главный поток
+        win = ctk.CTkToplevel(app)
+        win.title("Досье сталкера")
+        win.geometry("440x480")
+        win.transient(app)
+        ctk.CTkLabel(win, text="Ник персонажа:", font=title_font
+                     ).pack(padx=12, pady=(10, 0))
+        name_var = ctk.StringVar()
+        ent = ctk.CTkEntry(win, textvariable=name_var, width=260,
+                           placeholder_text="VasyaPupkin")
+        ent.pack(padx=12, pady=4)
+        res_l = ctk.CTkLabel(win, text="", justify="left", wraplength=400)
+        res_l.pack(padx=12, pady=6)
+
+        def show(data: Any) -> None:
+            if not isinstance(data, dict) or not data.get("username"):
+                res_l.configure(text="Не найден. Проверь ник и регион.")
+                return
+            st = {s.get("id"): s.get("value")
+                  for s in data.get("stats", [])
+                  if isinstance(s, dict)}
+            kil = float(st.get("kil") or 0)
+            dea = float(st.get("dea") or 0)
+            fir = float(st.get("sho-fir") or 0)
+            hit = float(st.get("sho-hit") or 0)
+            kd = kil / dea if dea else kil
+            acc = hit / fir * 100 if fir else 0.0
+            ally = ALLIANCE_RU.get(str(data.get("alliance")),
+                                   data.get("alliance") or "?")
+            last = str(data.get("lastLogin") or "")[:10]
+            res_l.configure(text="\n".join([
+                f"🪪 {data.get('username')} · {ally}",
+                f"Был в игре: {last or '?'}",
+                f"Фраги: {kil:.0f} · Смерти: {dea:.0f} · K/D: {kd:.2f}",
+                f"Точность: {acc:.1f}% (выстрелов: {fir:.0f})",
+                f"Мутанты: {st.get('mut-kil', 0)} · "
+                f"NPC: {st.get('npc-kil', 0)}",
+                f"В игре: {_fmt_playtime(st.get('pla-tim'))}",
+                f"Очки достижений: {st.get('ach-points', 0)}",
+            ]))
+
+        def fetch() -> None:
+            name = name_var.get().strip()
+            if not name:
+                return
+            region = region_var.get().strip()
+            res_l.configure(text="Ищу…")
+
+            def work() -> None:
+                try:
+                    with EAPI_LOCK:
+                        c = make_client(region, quiet=True)
+                        if not hasattr(c, "profile"):
+                            raise RuntimeError(
+                                "нужен ключ API (зеркало не умеет профили)")
+                        data = c.profile(name, region or None)
+                    app.after(0, lambda: show(data))
+                except Exception as e:  # noqa: BLE001
+                    app.after(0, lambda: res_l.configure(text=f"Ошибка: {e}"))
+
+            threading.Thread(target=work, daemon=True).start()
+
+        ctk.CTkButton(win, text="Найти", command=fetch).pack(pady=4)
+        ent.bind("<Return>", lambda _e: fetch())
+
+    def toggle_theme() -> None:  # главный поток
+        new = "Light" if theme_state["mode"] == "Dark" else "Dark"
+        ctk.set_appearance_mode(new)
+        theme_state["mode"] = new
+        theme_btn.configure(text="☀️" if new == "Dark" else "🌙")
+        save_watch()
+
+    theme_btn.configure(text="☀️" if theme_state["mode"] == "Dark"
+                        else "🌙")
+    refresh_emission(silent=True)
+    app.after(300000, _emis_tick)
+
+    def open_shopping() -> None:  # главный поток
+        tr = current_trip
+        if not tr or (not tr.get("stops") and not tr.get("home")):
+            set_status("Нет рейса — нажмите «🧭 Рейс» сначала.")
+            return
+
+        def need_buy(crafts: list[dict]) -> dict[str, float]:
+            buy: dict[str, float] = {}
+            for e in crafts:
+                for b in e.get("breakdown", []):
+                    if b.get("via"):  # полуфабрикат — скрафтим сами
+                        continue
+                    iid = b["item"]
+                    buy[iid] = buy.get(iid, 0.0) + float(b["count"])
+            return buy
+
+        win = ctk.CTkToplevel(app)
+        win.title("Список покупок")
+        win.geometry("520x600")
+        win.transient(app)
+        box = ctk.CTkScrollableFrame(win, label_text="Что докупить")
+        box.pack(fill="both", expand=True, padx=10, pady=10)
+        lines: list[str] = []
+
+        def section(title: str, buy: dict[str, float],
+                    money: float) -> None:
+            ctk.CTkLabel(box, text=title, font=title_font, anchor="w"
+                         ).pack(fill="x", padx=8, pady=(6, 2))
+            lines.append(title)
+            for iid, cnt in sorted(buy.items(),
+                                   key=lambda kv: display(kv[0])):
+                ctk.CTkLabel(box, text=f"  • {display(iid)} ×{cnt:g}",
+                             anchor="w").pack(fill="x", padx=8)
+                lines.append(f"{display(iid)} x{cnt:g}")
+            if money:
+                ctk.CTkLabel(box, text=f"  💵 NPC: {_fmt_money(money)}",
+                             anchor="w").pack(fill="x", padx=8)
+                lines.append(f"NPC деньги: {money:g}")
+
+        for n, t in enumerate(tr.get("stops", []), 1):
+            section(f"{n}. {station_short(t['station'])}",
+                    need_buy(t.get("crafts", [])),
+                    float(t.get("money_npc", 0) or 0))
+        if tr.get("home"):
+            money = sum(float(e.get("money", 0) or 0)
+                        for e in tr["home"])
+            section("🏠 Своя база", need_buy(tr["home"]), money)
+
+        def copy_list() -> None:
+            app.clipboard_clear()
+            app.clipboard_append("\n".join(lines))
+            set_status("Список покупок скопирован.")
+
+        ctk.CTkButton(win, text="📋 Копировать список",
+                      command=copy_list).pack(pady=8)
+
     def open_trip() -> None:  # главный поток
         if not trip:
             log("Рейс пуст — нажмите «+ Рейс» на строках крафтов.")
@@ -1103,6 +1380,8 @@ def main() -> None:
                   command=lambda: clicked(do_snipe)).pack(side="left", padx=5)
     trip_btn = ctk.CTkButton(btns, text="🧭 Рейс (0)", command=open_trip)
     trip_btn.pack(side="left", padx=5)
+    ctk.CTkButton(btns, text="🛒 Список",
+                  command=open_shopping).pack(side="left", padx=5)
     wd_btn = ctk.CTkButton(btns, text="🔔 Сторож", command=toggle_watchdog)
     wd_btn.pack(side="left", padx=5)
     ctk.CTkButton(btns, text="📋 Копировать",
@@ -1150,7 +1429,9 @@ def main() -> None:
                  "куда прийти, где продать\n"
                  "5) «+ Рейс» отмечает крафты, «🧭 Рейс» строит общий маршрут, "
                  "«📍 В игру» переносит его в игру метками\n"
-                 "6) «📋» в списке — досье предмета, 🎯 — цель для «🔔 Сторожа»")},
+                 "6) «📋» в списке — досье предмета, 🎯 — цель для «🔔 Сторожа»\n"
+                 "7) В шапке: ☢ выбросы Зоны · «🪪 Сталкер» — досье игрока · "
+                 "«🛒 Список» — что докупить для рейса")},
         {"title": f"📦 Каталог: {len(cat)} предметов · рецептов: {len(recipes)}",
          "sub": ("Названия и иконки — из официальной базы EXBO. "
                  "Иконки докачиваются в фоне (статус справа вверху).")},

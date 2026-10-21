@@ -160,6 +160,19 @@ class EapiClient:
     def clans(self, region: str | None = None) -> Any:
         return self._get(f"/{region or self.region}/clans")
 
+    def emission(self, region: str | None = None) -> Any:
+        """Current/previous emission state (needs app token)."""
+        return self._get(f"/{region or self.region}/emission")
+
+    def profile(self, character: str,
+                region: str | None = None) -> Any:
+        """Public character profile: alliance, stats, clan."""
+        import urllib.parse
+
+        name = urllib.parse.quote(str(character).strip(), safe="")
+        return self._get(
+            f"/{region or self.region}/character/by-name/{name}/profile")
+
     def lots(
         self,
         item_id: str,

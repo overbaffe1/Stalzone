@@ -94,6 +94,23 @@ def open_dossier(app: Any, ctx: dict[str, Any], item_id: str) -> None:
     ctk.CTkButton(tgt, text="OK", width=60, command=save_tgt).pack(
         side="left", padx=4)
 
+    # личная заметка
+    get_note = ctx.get("get_note", lambda _i: "")
+    set_note = ctx.get("set_note", lambda _i, _t: None)
+    ntf = ctk.CTkFrame(win)
+    ntf.pack(fill="x", padx=10, pady=5)
+    ctk.CTkLabel(ntf, text="📝 Заметка:").pack(side="left", padx=8)
+    note_var = ctk.StringVar(value=get_note(item_id))
+    ctk.CTkEntry(ntf, textvariable=note_var, width=300,
+                 placeholder_text="например: продать после вайпа").pack(
+                     side="left", padx=4)
+
+    def save_note() -> None:
+        set_note(item_id, note_var.get())
+
+    ctk.CTkButton(ntf, text="💾", width=44, command=save_note).pack(
+        side="left", padx=4)
+
     box = ctk.CTkScrollableFrame(win, label_text="Рынок")
     box.pack(fill="both", expand=True, padx=10, pady=5)
 

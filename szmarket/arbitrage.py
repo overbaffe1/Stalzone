@@ -46,16 +46,46 @@ def percentile(sorted_values: list[float], q: float) -> float:
     return float(s[lo] * (1.0 - frac) + s[hi] * frac)
 
 
+MAD_THRESHOLD = 2.5
+MAD_MIN_SAMPLES = 5
+
+
+def mad_outliers(prices: list[float],
+                 threshold: float = MAD_THRESHOLD) -> list[bool]:
+    """Modified z-score (0.6745*|x-med|/MAD) outlier flags.
+
+    Adaptive: removes nothing on clean data, a lot on dirty data.
+    Samples < MAD_MIN_SAMPLES or MAD == 0 are never flagged.
+    """
+    if len(prices) < MAD_MIN_SAMPLES:
+        return [False] * len(prices)
+    med = median(prices)
+    devs = sorted(abs(p - med) for p in prices)
+    mad = median(devs)
+    if mad <= 0:
+        return [False] * len(prices)
+    return [abs(0.6745 * (p - med) / mad) > threshold for p in prices]
+
+
 def summarize_sales(
-    records: list[dict[str, Any]], price_key: str = "unit_price"
+    records: list[dict[str, Any]], price_key: str = "unit_price",
+    mad: bool = True,
 ) -> dict[str, Any]:
     """Aggregate sales records into fair-value bands + liquidity stats."""
+    if mad:
+        flags = mad_outliers([float(r.get(price_key, 0) or 0)
+                              for r in records])
+        rejected = sum(1 for f in flags if f)
+        records = [r for r, f in zip(records, flags) if not f]
+    else:
+        rejected = 0
     prices = [float(r[price_key]) for r in records if r.get(price_key)]
     if not prices:
         return {
             "count": 0, "median": 0.0, "p25": 0.0, "p75": 0.0,
             "min": 0.0, "max": 0.0, "velocity_per_day": 0.0,
             "volume": 0, "turnover": 0.0, "spread": 0.0,
+            "rejected": rejected,
         }
     s = sorted(prices)
     volume = sum(int(r.get("amount", 1) or 1) for r in records)
@@ -82,6 +112,7 @@ def summarize_sales(
         "volume": volume,
         "turnover": turnover,
         "spread": (p75 - p25) / med if med > 0 else 0.0,
+        "rejected": rejected,
     }
 
 

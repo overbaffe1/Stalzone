@@ -21,6 +21,31 @@ from .eapi import EapiError, _as_list
 MIRROR_BASE = "https://lunar-client.ru/web-api/stalcraft/auction.php"
 
 
+def _rec_time(rec: dict[str, Any]) -> str:
+    for key in ("soldAt", "sold_at", "time", "date"):
+        val = rec.get(key)
+        if val:
+            return str(val)
+    return ""
+
+
+def looks_like_stub(records: list[dict[str, Any]]) -> bool:
+    """True for a synthetic stub page: shuffled times + no detail.
+
+    Mirror hosts sometimes serve a small fake page instead of real
+    history (see Stalcrafter-X research). Real pages are sorted
+    newest-first and carry `additional` on most entries.
+    """
+    if len(records) < 5:
+        return False
+    times = [_rec_time(r) for r in records]
+    if any(not t for t in times):
+        return False  # unknown shape — give it the benefit of the doubt
+    ordered = all(a >= b for a, b in zip(times, times[1:]))
+    detailed = sum(1 for r in records if r.get("additional"))
+    return (not ordered) and detailed < 2
+
+
 class MirrorClient:
     """Drop-in reader with the EapiClient subset the app uses."""
 
@@ -92,4 +117,9 @@ class MirrorClient:
 
     def history_all(self, item_id: str, limit: int = 200,
                     max_pages: int = 1, **_: Any) -> list[dict[str, Any]]:
-        return _as_list(self.history(item_id, limit=limit))
+        recs = _as_list(self.history(item_id, limit=limit))
+        if looks_like_stub(recs):
+            recs = _as_list(self.history(item_id, limit=limit))
+            if looks_like_stub(recs):
+                return []  # не травим кэш фейком
+        return recs
