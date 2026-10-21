@@ -16,7 +16,7 @@
     "startPrice",
     "startTime"
   ],
-  "lots_sample": "[{\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 100, \"buyoutPrice\": 10000, \"startTime\": \"2026-10-20T23:05:49.547286Z\", \"endTime\": \"2026-10-21T11:05:49.547287Z\", \"additional\": {}}, {\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 100, \"buyoutPrice\": 10000, \"startTime\": \"2026-10-19T23:05:49.547288Z\", \"endTime\": \"2026-10-21T11:05:49.547288Z\", \"additional\": {}}]",
+  "lots_sample": "[{\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 100, \"buyoutPrice\": 10000, \"startTime\": \"2026-10-20T23:07:08.521420Z\", \"endTime\": \"2026-10-21T11:07:08.521421Z\", \"additional\": {}}, {\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 100, \"buyoutPrice\": 10000, \"startTime\": \"2026-10-19T23:07:08.521421Z\", \"endTime\": \"2026-10-21T11:07:08.521421Z\", \"additional\": {}}]",
   "history_ok": true,
   "history_count": 5,
   "history_keys": [
@@ -25,5 +25,5 @@
     "price",
     "time"
   ],
-  "history_sample": "[{\"amount\": 1, \"price\": 1000, \"time\": \"2026-10-21T01:05:50.631088Z\", \"additional\": {}}, {\"amount\": 2, \"price\": 2000, \"time\": \"2026-10-21T00:50:50.631088Z\", \"additional\": {}}]"
+  "history_sample": "[{\"amount\": 1, \"price\": 1000, \"time\": \"2026-10-21T01:07:09.464867Z\", \"additional\": {}}, {\"amount\": 2, \"price\": 2000, \"time\": \"2026-10-21T00:52:09.464868Z\", \"additional\": {}}]"
 }

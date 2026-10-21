@@ -1,6 +1,27 @@
-[research] region=RU recipes=2769 items=40 min_sales=10 workers=4
-[research] history 40/40 (0.3 min, errors=0)
-[research] medians ready: 21/40 items with >=10 sales
-[research] profitable recipes: 2 (total evaluated 2)
-[research] lots 1/1
-[research] DONE in 0.5 min -> fetched_info/research.json, fetched_info/research.md
+[research] region=RU recipes=2769 items=994 min_sales=10 workers=4
+[research] history 50/994 (0.2 min, errors=0)
+[research] history 100/994 (1.1 min, errors=0)
+[research] history 150/994 (2.1 min, errors=0)
+[research] history 200/994 (3.1 min, errors=0)
+[research] history 250/994 (4.2 min, errors=0)
+[research] history 300/994 (5.1 min, errors=0)
+[research] history 350/994 (6.3 min, errors=0)
+[research] history 400/994 (7.0 min, errors=0)
+[research] history 450/994 (8.1 min, errors=0)
+[research] history 500/994 (9.1 min, errors=0)
+[research] history 550/994 (10.2 min, errors=0)
+[research] history 600/994 (11.1 min, errors=0)
+[research] history 650/994 (12.2 min, errors=0)
+[research] history 700/994 (13.0 min, errors=0)
+[research] history 750/994 (14.1 min, errors=0)
+[research] history 800/994 (15.1 min, errors=0)
+[research] history 850/994 (16.1 min, errors=0)
+[research] history 900/994 (17.1 min, errors=0)
+[research] history 950/994 (18.1 min, errors=0)
+[research] history 994/994 (18.9 min, errors=0)
+[research] medians ready: 609/994 items with >=10 sales
+[research] profitable recipes: 116 (total evaluated 386)
+[research] lots 20/43
+[research] lots 40/43
+[research] lots 43/43
+[research] DONE in 20.0 min -> fetched_info/research.json, fetched_info/research.md

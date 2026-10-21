@@ -45,7 +45,7 @@ tests/test_store.py::test_shared_store_across_threads PASSED             [ 95%]
 tests/test_store.py::test_save_and_read_sales PASSED                     [ 97%]
 tests/test_ui_import.py::test_ui_module_imports_without_display PASSED   [100%]
 
-============================== 40 passed in 0.42s ==============================
+============================== 40 passed in 1.08s ==============================
 [smoke] clans EU: OK (dict)
 [smoke] lots y1q9: OK (5 rows, keys=['additional', 'amount', 'buyoutPrice', 'endTime', 'itemId', 'startPrice', 'startTime'])
 [smoke] history y1q9: OK (5 rows, keys=['additional', 'amount', 'price', 'time'])
