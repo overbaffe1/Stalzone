@@ -65,7 +65,7 @@ tests/test_zonemap.py::test_apply_calibration_overrides_markers PASSED   [ 96%]
 tests/test_zonemap.py::test_all_map_stations_have_location_hint PASSED   [ 98%]
 tests/test_zonemap.py::test_ensure_background_stitches SKIPPED (coul...) [100%]
 
-======================== 59 passed, 1 skipped in 0.69s =========================
+======================== 59 passed, 1 skipped in 0.79s =========================
 [smoke] clans EU: OK (dict)
 [smoke] lots y1q9: OK (5 rows, keys=['additional', 'amount', 'buyoutPrice', 'endTime', 'itemId', 'startPrice', 'startTime'])
 [smoke] history y1q9: OK (5 rows, keys=['additional', 'amount', 'price', 'time'])
