@@ -1,0 +1,6 @@
+[research] region=RU recipes=2769 items=40 min_sales=10 workers=4
+[research] history 40/40 (0.3 min, errors=0)
+[research] medians ready: 21/40 items with >=10 sales
+[research] profitable recipes: 2 (total evaluated 2)
+[research] lots 1/1
+[research] DONE in 0.5 min -> fetched_info/research.json, fetched_info/research.md

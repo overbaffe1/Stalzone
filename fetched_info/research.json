@@ -1,0 +1,126 @@
+{
+ "meta": {
+  "region": "RU",
+  "min_sales": 10,
+  "recipes": 2769,
+  "items": 40,
+  "covered": 21,
+  "elapsed_min": 0.5
+ },
+ "top": [
+  {
+   "recipe_id": "barter:1206:0r439",
+   "kind": "barter",
+   "product_id": "0r439",
+   "station": "Бартер · Лодочная станция",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 1800.0,
+   "money": 1800.0,
+   "breakdown": [],
+   "sell_price": 1500000.0,
+   "revenue": 1425000.0,
+   "profit": 1423200.0,
+   "roi": 790.6666666666666
+  },
+  {
+   "recipe_id": "barter:1246:0r439",
+   "kind": "barter",
+   "product_id": "0r439",
+   "station": "Бартер · Ставка Атамана",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 1800.0,
+   "money": 1800.0,
+   "breakdown": [],
+   "sell_price": 1500000.0,
+   "revenue": 1425000.0,
+   "profit": 1423200.0,
+   "roi": 790.6666666666666
+  }
+ ],
+ "snipe": [],
+ "splits": [
+  {
+   "item_id": "026y",
+   "single_med": 11987.0,
+   "bulk_med": 4140.0,
+   "spread": 1.7506400966183575,
+   "n1": 67,
+   "n10": 123
+  }
+ ],
+ "backpacks": [
+  {
+   "item_id": "l332",
+   "lots": 0,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "n339",
+   "lots": 7,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "yq90",
+   "lots": 0,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "12r1",
+   "lots": 22,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "wwjo",
+   "lots": 0,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "lny1",
+   "lots": 2,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "nv43",
+   "lots": 1,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "p262",
+   "lots": 0,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "glnp",
+   "lots": 0,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "zq3n",
+   "lots": 0,
+   "with_additional": 0,
+   "sample": []
+  },
+  {
+   "item_id": "342q5",
+   "lots": 0,
+   "with_additional": 0,
+   "sample": []
+  }
+ ],
+ "cases": []
+}
