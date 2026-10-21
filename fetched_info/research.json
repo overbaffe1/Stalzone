@@ -3,11 +3,185 @@
   "region": "RU",
   "min_sales": 10,
   "recipes": 2769,
-  "items": 60,
-  "covered": 33,
-  "elapsed_min": 0.7
+  "items": 994,
+  "covered": 609,
+  "elapsed_min": 20.2
  },
  "top": [
+  {
+   "recipe_id": "barter:301:zzy2y",
+   "kind": "barter",
+   "product_id": "zzy2y",
+   "station": "Бартер · Фракции Севера",
+   "skill": "",
+   "skill_level": 3,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 270000.0,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "g4ym6",
+     "count": 1,
+     "unit": 270000.0,
+     "total": 270000.0
+    }
+   ],
+   "sell_price": 10000000.0,
+   "revenue": 9500000.0,
+   "profit": 9230000.0,
+   "roi": 34.18518518518518,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1031:zzy2y",
+   "kind": "barter",
+   "product_id": "zzy2y",
+   "station": "Бартер · Лагерь Наемников",
+   "skill": "",
+   "skill_level": 3,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 270000.0,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "g4ym6",
+     "count": 1,
+     "unit": 270000.0,
+     "total": 270000.0
+    }
+   ],
+   "sell_price": 10000000.0,
+   "revenue": 9500000.0,
+   "profit": 9230000.0,
+   "roi": 34.18518518518518,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1854:zzy2y",
+   "kind": "barter",
+   "product_id": "zzy2y",
+   "station": "Бартер · Обитель «Завета»",
+   "skill": "",
+   "skill_level": 3,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 270000.0,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "g4ym6",
+     "count": 1,
+     "unit": 270000.0,
+     "total": 270000.0
+    }
+   ],
+   "sell_price": 10000000.0,
+   "revenue": 9500000.0,
+   "profit": 9230000.0,
+   "roi": 34.18518518518518,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:744:7lm56",
+   "kind": "barter",
+   "product_id": "7lm56",
+   "station": "Бартер · База «Рубежа»",
+   "skill": "",
+   "skill_level": 3,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 5300000.0,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "6w0zp",
+     "count": 1,
+     "unit": 5300000.0,
+     "total": 5300000.0
+    }
+   ],
+   "sell_price": 7625000.0,
+   "revenue": 7243750.0,
+   "profit": 1943750.0,
+   "roi": 0.36674528301886794,
+   "stats": {
+    "product_count": 28,
+    "inputs_min": 31,
+    "velocity": 28.0
+   }
+  },
+  {
+   "recipe_id": "barter:1378:7lm56",
+   "kind": "barter",
+   "product_id": "7lm56",
+   "station": "Бартер · Фракции Севера",
+   "skill": "",
+   "skill_level": 3,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 5300000.0,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "6w0zp",
+     "count": 1,
+     "unit": 5300000.0,
+     "total": 5300000.0
+    }
+   ],
+   "sell_price": 7625000.0,
+   "revenue": 7243750.0,
+   "profit": 1943750.0,
+   "roi": 0.36674528301886794,
+   "stats": {
+    "product_count": 28,
+    "inputs_min": 31,
+    "velocity": 28.0
+   }
+  },
+  {
+   "recipe_id": "barter:2214:7lm56",
+   "kind": "barter",
+   "product_id": "7lm56",
+   "station": "Бартер · База «Зари»",
+   "skill": "",
+   "skill_level": 3,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 5300000.0,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "6w0zp",
+     "count": 1,
+     "unit": 5300000.0,
+     "total": 5300000.0
+    }
+   ],
+   "sell_price": 7625000.0,
+   "revenue": 7243750.0,
+   "profit": 1943750.0,
+   "roi": 0.36674528301886794,
+   "stats": {
+    "product_count": 28,
+    "inputs_min": 31,
+    "velocity": 28.0
+   }
+  },
   {
    "recipe_id": "barter:1206:0r439",
    "kind": "barter",
@@ -51,11 +225,835 @@
     "inputs_min": 200,
     "velocity": 200.0
    }
+  },
+  {
+   "recipe_id": "barter:1213:y37wz",
+   "kind": "barter",
+   "product_id": "y37wz",
+   "station": "Бартер · Лодочная станция",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 940.0,
+   "money": 940.0,
+   "breakdown": [],
+   "sell_price": 690000.0,
+   "revenue": 655500.0,
+   "profit": 654560.0,
+   "roi": 696.3404255319149,
+   "stats": {
+    "product_count": 15,
+    "inputs_min": 15,
+    "velocity": 15.0
+   }
+  },
+  {
+   "recipe_id": "barter:1253:y37wz",
+   "kind": "barter",
+   "product_id": "y37wz",
+   "station": "Бартер · Ставка Атамана",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 940.0,
+   "money": 940.0,
+   "breakdown": [],
+   "sell_price": 690000.0,
+   "revenue": 655500.0,
+   "profit": 654560.0,
+   "roi": 696.3404255319149,
+   "stats": {
+    "product_count": 15,
+    "inputs_min": 15,
+    "velocity": 15.0
+   }
+  },
+  {
+   "recipe_id": "barter:1207:969ky",
+   "kind": "barter",
+   "product_id": "969ky",
+   "station": "Бартер · Лодочная станция",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 280.0,
+   "money": 280.0,
+   "breakdown": [],
+   "sell_price": 355555.0,
+   "revenue": 337777.25,
+   "profit": 337497.25,
+   "roi": 1205.3473214285714,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1247:969ky",
+   "kind": "barter",
+   "product_id": "969ky",
+   "station": "Бартер · Ставка Атамана",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 280.0,
+   "money": 280.0,
+   "breakdown": [],
+   "sell_price": 355555.0,
+   "revenue": 337777.25,
+   "profit": 337497.25,
+   "roi": 1205.3473214285714,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1209:1r7dr",
+   "kind": "barter",
+   "product_id": "1r7dr",
+   "station": "Бартер · Лодочная станция",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 340.0,
+   "money": 340.0,
+   "breakdown": [],
+   "sell_price": 222222.0,
+   "revenue": 211110.9,
+   "profit": 210770.9,
+   "roi": 619.9144117647058,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1249:1r7dr",
+   "kind": "barter",
+   "product_id": "1r7dr",
+   "station": "Бартер · Ставка Атамана",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 340.0,
+   "money": 340.0,
+   "breakdown": [],
+   "sell_price": 222222.0,
+   "revenue": 211110.9,
+   "profit": 210770.9,
+   "roi": 619.9144117647058,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1217:1rj7r",
+   "kind": "barter",
+   "product_id": "1rj7r",
+   "station": "Бартер · Лодочная станция",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 420.0,
+   "money": 420.0,
+   "breakdown": [],
+   "sell_price": 220000.0,
+   "revenue": 209000.0,
+   "profit": 208580.0,
+   "roi": 496.6190476190476,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1257:1rj7r",
+   "kind": "barter",
+   "product_id": "1rj7r",
+   "station": "Бартер · Ставка Атамана",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 420.0,
+   "money": 420.0,
+   "breakdown": [],
+   "sell_price": 220000.0,
+   "revenue": 209000.0,
+   "profit": 208580.0,
+   "roi": 496.6190476190476,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1222:96vjz",
+   "kind": "barter",
+   "product_id": "96vjz",
+   "station": "Бартер · Лодочная станция",
+   "skill": "",
+   "skill_level": 2,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 420.0,
+   "money": 420.0,
+   "breakdown": [],
+   "sell_price": 200000.0,
+   "revenue": 190000.0,
+   "profit": 189580.0,
+   "roi": 451.3809523809524,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1262:96vjz",
+   "kind": "barter",
+   "product_id": "96vjz",
+   "station": "Бартер · Ставка Атамана",
+   "skill": "",
+   "skill_level": 2,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 420.0,
+   "money": 420.0,
+   "breakdown": [],
+   "sell_price": 200000.0,
+   "revenue": 190000.0,
+   "profit": 189580.0,
+   "roi": 451.3809523809524,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:515:ok0m6",
+   "kind": "barter",
+   "product_id": "ok0m6",
+   "station": "Бартер · Сельская школа",
+   "skill": "",
+   "skill_level": 2,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 185000.0,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "lyj2k",
+     "count": 1,
+     "unit": 185000.0,
+     "total": 185000.0
+    }
+   ],
+   "sell_price": 350000.0,
+   "revenue": 332500.0,
+   "profit": 147500.0,
+   "roi": 0.7972972972972973,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1243:4ql2r",
+   "kind": "barter",
+   "product_id": "4ql2r",
+   "station": "Бартер · Ставка Атамана",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 1800.0,
+   "money": 1800.0,
+   "breakdown": [],
+   "sell_price": 98999.5,
+   "revenue": 94049.525,
+   "profit": 92249.525,
+   "roi": 51.249736111111105,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:057:g42gn",
+   "kind": "barter",
+   "product_id": "g42gn",
+   "station": "Бартер · Бар",
+   "skill": "",
+   "skill_level": 2,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 850.0,
+   "money": 850.0,
+   "breakdown": [],
+   "sell_price": 84500.0,
+   "revenue": 80275.0,
+   "profit": 79425.0,
+   "roi": 93.44117647058823,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1610:g42gn",
+   "kind": "barter",
+   "product_id": "g42gn",
+   "station": "Бартер · Бар",
+   "skill": "",
+   "skill_level": 2,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 850.0,
+   "money": 850.0,
+   "breakdown": [],
+   "sell_price": 84500.0,
+   "revenue": 80275.0,
+   "profit": 79425.0,
+   "roi": 93.44117647058823,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "hideout:009:wjnr2",
+   "kind": "hideout",
+   "product_id": "wjnr2",
+   "station": "Верстак",
+   "skill": "Боеприпасы",
+   "skill_level": 5,
+   "energy": 1200.0,
+   "units": 1.0,
+   "cost": 149999.0,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "g4r26",
+     "count": 1,
+     "unit": 79999.0,
+     "total": 79999.0
+    },
+    {
+     "item": "4nnj",
+     "count": 10,
+     "unit": 7000.0,
+     "total": 70000.0
+    }
+   ],
+   "sell_price": 226944.0,
+   "revenue": 215596.8,
+   "profit": 65597.79999999999,
+   "roi": 0.4373215821438809,
+   "stats": {
+    "product_count": 84,
+    "inputs_min": 200,
+    "velocity": 84.0
+   }
+  },
+  {
+   "recipe_id": "barter:029:5lpvo",
+   "kind": "barter",
+   "product_id": "5lpvo",
+   "station": "Бартер · Бар",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 530.0,
+   "money": 530.0,
+   "breakdown": [],
+   "sell_price": 50000.0,
+   "revenue": 47500.0,
+   "profit": 46970.0,
+   "roi": 88.62264150943396,
+   "stats": {
+    "product_count": 173,
+    "inputs_min": 173,
+    "velocity": 173.0
+   }
+  },
+  {
+   "recipe_id": "barter:1582:5lpvo",
+   "kind": "barter",
+   "product_id": "5lpvo",
+   "station": "Бартер · Бар",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 530.0,
+   "money": 530.0,
+   "breakdown": [],
+   "sell_price": 50000.0,
+   "revenue": 47500.0,
+   "profit": 46970.0,
+   "roi": 88.62264150943396,
+   "stats": {
+    "product_count": 173,
+    "inputs_min": 173,
+    "velocity": 173.0
+   }
+  },
+  {
+   "recipe_id": "barter:1210:5ldwg",
+   "kind": "barter",
+   "product_id": "5ldwg",
+   "station": "Бартер · Лодочная станция",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 940.0,
+   "money": 940.0,
+   "breakdown": [],
+   "sell_price": 50000.0,
+   "revenue": 47500.0,
+   "profit": 46560.0,
+   "roi": 49.53191489361702,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1250:5ldwg",
+   "kind": "barter",
+   "product_id": "5ldwg",
+   "station": "Бартер · Ставка Атамана",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 940.0,
+   "money": 940.0,
+   "breakdown": [],
+   "sell_price": 50000.0,
+   "revenue": 47500.0,
+   "profit": 46560.0,
+   "roi": 49.53191489361702,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "hideout:049:4qzyr",
+   "kind": "hideout",
+   "product_id": "4qzyr",
+   "station": "Верстак",
+   "skill": "Защитное снаряжение",
+   "skill_level": 5,
+   "energy": 1200.0,
+   "units": 2.0,
+   "cost": 54429.78,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "99n0",
+     "count": 1,
+     "unit": 8500.0,
+     "total": 8500.0
+    },
+    {
+     "item": "ovo4",
+     "count": 3,
+     "unit": 876.66,
+     "total": 2629.98
+    },
+    {
+     "item": "1731",
+     "count": 2,
+     "unit": 19000.0,
+     "total": 38000.0
+    },
+    {
+     "item": "999q",
+     "count": 10,
+     "unit": 529.98,
+     "total": 5299.8
+    }
+   ],
+   "sell_price": 48472.0,
+   "revenue": 92096.8,
+   "profit": 37667.020000000004,
+   "roi": 0.692029620549633,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "hideout:337:vjdqd",
+   "kind": "hideout",
+   "product_id": "vjdqd",
+   "station": "Кухонный стол",
+   "skill": "Кулинария",
+   "skill_level": 5,
+   "energy": 900.0,
+   "units": 7.0,
+   "cost": 29711.8828125,
+   "money": 0.0,
+   "breakdown": [
+    {
+     "item": "g0y0",
+     "count": 3,
+     "unit": 304.0,
+     "total": 912.0
+    },
+    {
+     "item": "y391o",
+     "count": 3,
+     "unit": 1465.2265625,
+     "total": 4395.6796875
+    },
+    {
+     "item": "m2k7",
+     "count": 10,
+     "unit": 1000.0,
+     "total": 10000.0
+    },
+    {
+     "item": "qjmjk",
+     "count": 3,
+     "unit": 1468.734375,
+     "total": 4406.203125
+    },
+    {
+     "item": "1dk6",
+     "count": 2,
+     "unit": 4999.0,
+     "total": 9998.0
+    }
+   ],
+   "sell_price": 10000.0,
+   "revenue": 66500.0,
+   "profit": 36788.1171875,
+   "roi": 1.2381617624051404,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
+  },
+  {
+   "recipe_id": "barter:1205:rwnrv",
+   "kind": "barter",
+   "product_id": "rwnrv",
+   "station": "Бартер · Лодочная станция",
+   "skill": "",
+   "skill_level": 1,
+   "energy": 0.0,
+   "units": 1.0,
+   "cost": 1800.0,
+   "money": 1800.0,
+   "breakdown": [],
+   "sell_price": 40000.0,
+   "revenue": 38000.0,
+   "profit": 36200.0,
+   "roi": 20.11111111111111,
+   "stats": {
+    "product_count": 200,
+    "inputs_min": 200,
+    "velocity": 200.0
+   }
   }
  ],
- "swaps": [],
- "snipe": [],
+ "swaps": [
+  {
+   "buy_id": "g4ym6",
+   "sell_id": "zzy2y",
+   "buy_med": 270000.0,
+   "sell_med": 10000000.0,
+   "profit": 9230000.0,
+   "stations": [
+    "Бартер · Фракции Севера",
+    "Бартер · Лагерь Наемников",
+    "Бартер · Обитель «Завета»"
+   ],
+   "count_buy": 200,
+   "count_sell": 200
+  },
+  {
+   "buy_id": "6w0zp",
+   "sell_id": "7lm56",
+   "buy_med": 5300000.0,
+   "sell_med": 7625000.0,
+   "profit": 1943750.0,
+   "stations": [
+    "Бартер · База «Рубежа»",
+    "Бартер · Фракции Севера",
+    "Бартер · База «Зари»"
+   ],
+   "count_buy": 31,
+   "count_sell": 28
+  },
+  {
+   "buy_id": "y352k",
+   "sell_id": "5lrn1",
+   "buy_med": 445000.0,
+   "sell_med": 499999.0,
+   "profit": 29999.04999999999,
+   "stations": [
+    "Бартер · Бар"
+   ],
+   "count_buy": 200,
+   "count_sell": 200
+  }
+ ],
+ "snipe": [
+  {
+   "time_left_sec": 1719.740948,
+   "time_left": "28 мин",
+   "amount": 5,
+   "buy_total": 30000.0,
+   "unit_buy": 6000.0,
+   "max_buy_total": 21018.75,
+   "fair_median": 4425.0,
+   "qlt": null,
+   "profit_total": 21017.75,
+   "margin": 21017.75,
+   "buyout_ok": false,
+   "bid_ok": true,
+   "current_bid": 0.0,
+   "min_next_bid": 1.0,
+   "profit_bid": 21017.75,
+   "verdict": "✋ СТАВЬ",
+   "lot": {
+    "amount": 5,
+    "total_price": 30000.0,
+    "unit_price": 6000.0,
+    "start_time": "2026-10-21T05:00:06Z",
+    "end_time": "2026-10-21T17:00:06Z",
+    "raw": {
+     "itemId": "p6256",
+     "amount": 5,
+     "startPrice": 0,
+     "buyoutPrice": 30000,
+     "startTime": "2026-10-21T05:00:06Z",
+     "endTime": "2026-10-21T17:00:06Z",
+     "additional": {}
+    }
+   },
+   "item_id": "p6256"
+  },
+  {
+   "time_left_sec": 3023.057745,
+   "time_left": "50 мин",
+   "amount": 12,
+   "buy_total": 144000.0,
+   "unit_buy": 12000.0,
+   "max_buy_total": 114000.0,
+   "fair_median": 10000.0,
+   "qlt": null,
+   "profit_total": 113999.0,
+   "margin": 113999.0,
+   "buyout_ok": false,
+   "bid_ok": true,
+   "current_bid": 0.0,
+   "min_next_bid": 1.0,
+   "profit_bid": 113999.0,
+   "verdict": "✋ СТАВЬ",
+   "lot": {
+    "amount": 12,
+    "total_price": 144000.0,
+    "unit_price": 12000.0,
+    "start_time": "2026-10-20T17:21:52Z",
+    "end_time": "2026-10-21T17:21:52Z",
+    "raw": {
+     "itemId": "qvm9",
+     "amount": 12,
+     "startPrice": 0,
+     "buyoutPrice": 144000,
+     "startTime": "2026-10-20T17:21:52Z",
+     "endTime": "2026-10-21T17:21:52Z",
+     "additional": {}
+    }
+   },
+   "item_id": "qvm9"
+  }
+ ],
  "splits": [
+  {
+   "item_id": "1rn01",
+   "single_med": 385000.0,
+   "bulk_med": 281.21875,
+   "spread": 1299.5889543282588,
+   "n1": 10,
+   "n10": 184
+  },
+  {
+   "item_id": "ll41",
+   "single_med": 2700.0,
+   "bulk_med": 250.0,
+   "spread": 9.26,
+   "n1": 75,
+   "n10": 111
+  },
+  {
+   "item_id": "z719",
+   "single_med": 4999.0,
+   "bulk_med": 499.8,
+   "spread": 8.501900760304121,
+   "n1": 55,
+   "n10": 137
+  },
+  {
+   "item_id": "3gvgg",
+   "single_med": 4950.0,
+   "bulk_med": 609.375,
+   "spread": 6.716923076923077,
+   "n1": 44,
+   "n10": 131
+  },
+  {
+   "item_id": "77w9j",
+   "single_med": 1700.0,
+   "bulk_med": 210.0,
+   "spread": 6.690476190476191,
+   "n1": 83,
+   "n10": 111
+  },
+  {
+   "item_id": "klk3",
+   "single_med": 7777.0,
+   "bulk_med": 1000.0,
+   "spread": 6.3881499999999996,
+   "n1": 15,
+   "n10": 166
+  },
+  {
+   "item_id": "rwol5",
+   "single_med": 1350.0,
+   "bulk_med": 213.28125,
+   "spread": 5.013186813186813,
+   "n1": 48,
+   "n10": 132
+  },
+  {
+   "item_id": "q2yj",
+   "single_med": 3000.0,
+   "bulk_med": 478.0,
+   "spread": 4.96234309623431,
+   "n1": 42,
+   "n10": 158
+  },
+  {
+   "item_id": "5njq",
+   "single_med": 5000.0,
+   "bulk_med": 873.3333333333333,
+   "spread": 4.4389312977099245,
+   "n1": 98,
+   "n10": 80
+  },
+  {
+   "item_id": "3g1qz",
+   "single_med": 2500.0,
+   "bulk_med": 450.0,
+   "spread": 4.277777777777778,
+   "n1": 98,
+   "n10": 95
+  },
+  {
+   "item_id": "40rl",
+   "single_med": 830.0,
+   "bulk_med": 157.76,
+   "spread": 3.9980983772819476,
+   "n1": 62,
+   "n10": 112
+  },
+  {
+   "item_id": "9m7w",
+   "single_med": 2500.0,
+   "bulk_med": 500.0,
+   "spread": 3.75,
+   "n1": 21,
+   "n10": 171
+  },
+  {
+   "item_id": "99dl",
+   "single_med": 898.0,
+   "bulk_med": 179.98,
+   "spread": 3.7399711079008773,
+   "n1": 91,
+   "n10": 81
+  },
+  {
+   "item_id": "rr7g",
+   "single_med": 2777.0,
+   "bulk_med": 560.0,
+   "spread": 3.710982142857143,
+   "n1": 51,
+   "n10": 131
+  },
+  {
+   "item_id": "wogp",
+   "single_med": 944.5,
+   "bulk_med": 200.0,
+   "spread": 3.486375,
+   "n1": 46,
+   "n10": 149
+  },
+  {
+   "item_id": "3rjk",
+   "single_med": 12500.0,
+   "bulk_med": 3000.0,
+   "spread": 2.9583333333333335,
+   "n1": 20,
+   "n10": 137
+  },
+  {
+   "item_id": "y7mo",
+   "single_med": 650.5,
+   "bulk_med": 159.98,
+   "spread": 2.862826603325416,
+   "n1": 12,
+   "n10": 177
+  },
+  {
+   "item_id": "g02p",
+   "single_med": 1250.0,
+   "bulk_med": 311.1,
+   "spread": 2.8171006107360976,
+   "n1": 14,
+   "n10": 177
+  },
+  {
+   "item_id": "vjdqd",
+   "single_med": 10000.0,
+   "bulk_med": 2515.136363636364,
+   "spread": 2.777131187537274,
+   "n1": 174,
+   "n10": 20
+  },
   {
    "item_id": "1d31",
    "single_med": 700.0,
@@ -63,30 +1061,6 @@
    "spread": 2.6944444444444446,
    "n1": 14,
    "n10": 179
-  },
-  {
-   "item_id": "026y",
-   "single_med": 11987.0,
-   "bulk_med": 4100.0,
-   "spread": 1.7774756097560975,
-   "n1": 68,
-   "n10": 121
-  },
-  {
-   "item_id": "19on2",
-   "single_med": 1000.0,
-   "bulk_med": 530.0,
-   "spread": 0.7924528301886793,
-   "n1": 64,
-   "n10": 121
-  },
-  {
-   "item_id": "1dwq",
-   "single_med": 3000.0,
-   "bulk_med": 2200.0,
-   "spread": 0.29545454545454547,
-   "n1": 17,
-   "n10": 181
   }
  ],
  "backpacks": [
