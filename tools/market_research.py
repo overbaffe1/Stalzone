@@ -359,8 +359,12 @@ def main() -> int:
     L.append("## Когда продавать (час по UTC)")
     L.append("")
     hourly_done = 0
+    hourly_seen: set[str] = set()
     for ev in winners[:15]:
         pid = ev["product_id"]
+        if pid in hourly_seen:
+            continue
+        hourly_seen.add(pid)
         buckets: dict[int, list[float]] = {}
         for r in store.recent_sales(pid, s.region, 2000):
             t = str(r.get("sold_at") or "")
@@ -374,7 +378,7 @@ def main() -> int:
             continue
         import statistics
         med = {h: statistics.median(v) for h, v in buckets.items()
-               if len(v) >= 3}
+               if len(v) >= 5}
         if len(med) < 4:
             continue
         best_h = max(med, key=med.get)
