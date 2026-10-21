@@ -73,3 +73,49 @@ def test_assemble_without_scfile(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="sc-file"):
         gamemap.assemble({(0, 0): tmp_path / "r.0.0.ol"},
                          tmp_path / "out.jpg")
+
+
+def _shipped() -> dict:
+    maps = {m["id"]: m for m in gamemap.load_shipped()}
+    assert {"global", "new_bar", "nbolota"} <= set(maps)
+    return maps
+
+
+def test_shipped_files_exist():
+    from pathlib import Path
+    for m in gamemap.load_shipped():
+        assert Path(m["path"]).is_file()
+
+
+def test_world_math_global():
+    g = _shipped()["global"]
+    assert gamemap.is_world(g)
+    # угол (0,0) -> северо-западный угол региона (-4,-2) в метрах
+    assert gamemap.frac_to_world(g, 0.0, 0.0) == (-2048.0, -1024.0)
+    # центр -> (256, 0)
+    assert gamemap.frac_to_world(g, 0.5, 0.5) == (256.0, 0.0)
+    # обратно
+    fx, fz = gamemap.world_to_frac(g, 256.0, 0.0)
+    assert abs(fx - 0.5) < 1e-9 and abs(fz - 0.5) < 1e-9
+    # 9 регионов x 512 м / 4608 пикселей = ровно 1 м/пиксель
+    assert gamemap.meters_per_pixel(g) == 1.0
+
+
+def test_world_math_bar():
+    b = _shipped()["new_bar"]
+    assert gamemap.is_world(b)
+    assert gamemap.frac_to_world(b, 0.0, 0.0) == (-1536.0, -5120.0)
+    assert gamemap.meters_per_pixel(b) == 0.25
+    assert "✅" in gamemap.describe(b)
+
+
+def test_local_maps_need_anchors():
+    maps = _shipped()
+    for mid in ("nbolota", "reichstag", "prestige", "kolizei",
+                "arena_raven", "dungeon_bolota", "sovetpunk"):
+        m = maps[mid]
+        assert not gamemap.is_world(m)
+        assert gamemap.frac_to_world(m, 0.5, 0.5) is None
+        assert gamemap.world_to_frac(m, 0, 0) is None
+        assert gamemap.meters_per_pixel(m) is None
+        assert "якоря" in gamemap.describe(m)

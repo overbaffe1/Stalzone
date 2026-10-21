@@ -289,7 +289,7 @@ def main() -> None:
     ctk.CTkLabel(map_head, textvariable=hover_var,
                  font=ctk.CTkFont(size=11)).pack(side="left", padx=12)
     map_state = {"bg": False, "bg_path": None, "calib": load_calibration(),
-                 "calibrating": False}
+                 "calibrating": False, "world": None}
     map_body = ctk.CTkFrame(map_frame)
     map_body.pack(fill="both", expand=True, padx=4, pady=(0, 4))
     def on_marker_move(st: str, x: float, y: float) -> None:  # главный поток
@@ -300,7 +300,10 @@ def main() -> None:
     def toggle_map_bg() -> None:  # главный поток
         if map_state["bg"]:
             map_state["bg"] = False
+            map_state["world"] = None
             map_view.set_background(None)
+            map_view.set_coord_fn(None)
+            map_view.set_credit(None)
             mapbg_btn.configure(text="🛰 Реальная карта")
             return
         mapbg_btn.configure(text="⏳ Загрузка…")
@@ -317,6 +320,9 @@ def main() -> None:
             map_state["bg"] = True
             map_state["bg_path"] = path
             map_view.set_background(path)
+            map_state["world"] = None
+            map_view.set_coord_fn(None)
+            map_view.set_credit(None)
             mapbg_btn.configure(text="🗺 Схема")
             set_status("Реальная карта загружена. Включи 🎯 Калибровку "
                        "и перетащи маркеры на истинные места (один раз).")
@@ -1418,11 +1424,25 @@ def main() -> None:
 
         win = ctk.CTkToplevel(app)
         win.title("Карта из файлов игры")
-        win.geometry("520x430")
+        win.geometry("540x660")
         win.transient(app)
+        ctk.CTkLabel(win, text="Встроенные карты (уже внутри приложения):",
+                     font=ctk.CTkFont(weight="bold")).pack(padx=12,
+                                                           pady=(10, 0))
+        shipped = gamemod.load_shipped()
+        ship_titles = [m.get("title", m["id"]) for m in shipped]
+        ship_var = ctk.StringVar(value=ship_titles[0] if ship_titles else "")
+        ship_menu = ctk.CTkOptionMenu(win, variable=ship_var,
+                                      values=ship_titles, width=340)
+        ship_menu.pack(padx=12, pady=4)
+        ship_info = ctk.CTkLabel(win, text="", wraplength=500,
+                                 justify="left")
+        ship_info.pack(padx=12, pady=2)
+        ctk.CTkButton(win, text="Показать встроенную",
+                      command=lambda: use_shipped()).pack(pady=2)
         ctk.CTkLabel(
-            win, justify="left",
-            text="Соберу фон карты из тайлов твоей игры\n"
+            win, justify="left", font=ctk.CTkFont(weight="bold"),
+            text="— или собери фон из тайлов твоей игры —\n"
                  "(modassets/assets/pda). Нужен пакет sc-file:\n"
                  "pip install sc-file").pack(padx=12, pady=(10, 4))
         hints = gamemod.default_hints()
@@ -1505,9 +1525,54 @@ def main() -> None:
 
             threading.Thread(target=work, daemon=True).start()
 
+        def _ship_meta():
+            for m in shipped:
+                if m.get("title", m["id"]) == ship_var.get():
+                    return m
+            return None
+
+        def refresh_ship_info(*_a):
+            m = _ship_meta()
+            ship_info.configure(text=gamemod.describe(m) if m else "")
+
+        def use_shipped():
+            m = _ship_meta()
+            if m is None:
+                return
+            map_state["bg"] = True
+            map_state["bg_path"] = m["path"]
+            map_view.set_background(m["path"])
+            mapbg_btn.configure(text="🗺 Схема")
+            gamebg_btn.configure(text="🎮 Из игры")
+            map_view.set_credit(f"фон: файлы игры · {m.get('title', '')}")
+            if gamemod.is_world(m):
+                map_state["world"] = m
+                meta = m
+
+                def _coord(fx, fy, _m=meta):
+                    w = gamemod.frac_to_world(_m, fx, fy)
+                    if w is None:
+                        return None
+                    return (f"🌍 x {w[0]:,.0f} · z {w[1]:,.0f} м"
+                            ).replace(",", " ")
+
+                map_view.set_coord_fn(_coord)
+                set_status(gamemod.describe(m) + " Наведи курсор — покажу метры.")
+            else:
+                map_state["world"] = None
+                map_view.set_coord_fn(None)
+                set_status(gamemod.describe(m))
+            win.destroy()
+
+        ship_menu.configure(command=refresh_ship_info)
+        refresh_ship_info()
+
         def use(meta: dict) -> None:
             map_state["bg"] = True
             map_state["bg_path"] = meta["image"]
+            map_state["world"] = None
+            map_view.set_coord_fn(None)
+            map_view.set_credit(None)
             map_view.set_background(meta["image"])
             mapbg_btn.configure(text="🗺 Схема")
             gamebg_btn.configure(text="🎮 Из игры")

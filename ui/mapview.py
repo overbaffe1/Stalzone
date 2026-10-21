@@ -55,11 +55,14 @@ class MapView(tk.Canvas):
                  on_select: Callable[[str], None] | None = None,
                  hover_var: Any = None,
                  on_move: Callable[[str, float, float], None] | None = None,
+                 coord_fn: Callable[[float, float], str | None] | None = None,
                  **kw: Any):
         super().__init__(master, bg=BG, highlightthickness=0, **kw)
         self._on_select = on_select
         self._hover_var = hover_var
         self._on_move = on_move
+        self._coord_fn = coord_fn
+        self._credit: str | None = None
         self._markers: list[dict[str, Any]] = []
         self._pos: dict[str, tuple[float, float]] = {}
         self._home_txt = ""
@@ -104,6 +107,15 @@ class MapView(tk.Canvas):
     def set_calibrate(self, on: bool) -> None:
         self._calibrate = bool(on)
         self._drag = None
+        self.draw()
+
+    def set_coord_fn(self, fn: Any) -> None:
+        """Подсказка мировых координат при наведении (доли фона -> текст)."""
+        self._coord_fn = fn
+
+    def set_credit(self, text: str | None) -> None:
+        """Подпись источника фона (None = подпись по умолчанию)."""
+        self._credit = text
         self.draw()
 
     # -- события -----------------------------------------------------
@@ -163,6 +175,14 @@ class MapView(tk.Canvas):
                 self._set_hover(f"🎯 {m['short']}: тащи на истинное место")
             else:
                 self._set_hover(f"📍 {m['short']}{extra} — клик: что тут делать")
+        elif self._coord_fn is not None and self._bg_src is not None:
+            w = max(self.winfo_width(), 1)
+            h = max(self.winfo_height(), 1)
+            try:
+                txt = self._coord_fn(e.x / w, e.y / h)
+            except Exception:  # noqa: BLE001
+                txt = None
+            self._set_hover(txt or "")
         else:
             self._set_hover("")
 
@@ -254,7 +274,7 @@ class MapView(tk.Canvas):
         if self._home_txt:
             self.create_text(w - 12, h - 30, text="🏠 " + self._home_txt,
                              fill=TEXT, anchor="se", font=("Arial", 10, "bold"))
-        self.create_text(12, h - 10,
-                         text="реальная карта: STALZONE Wiki" if real
-                         else "схема, не масштаб",
+        credit = self._credit if self._credit is not None else (
+            "реальная карта: STALZONE Wiki" if real else "схема, не масштаб")
+        self.create_text(12, h - 10, text=credit,
                          fill=DIM, anchor="sw", font=("Arial", 8))

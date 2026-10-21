@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,10 @@ from typing import Any
 MIN_TILE_SIZE = 7 * 1024
 PREFIX = "r."
 SUFFIX = ".ol"
+
+# v9: мировой тайл/регион — 512x512 м (подтверждено совпадением
+# map-new_bar/r.-3.-10.ol с mapcache reg.-3.-10 из сейва Бара).
+REGION_M = 512
 
 GAME_DIR_NAMES = ("STALZONE", "STALCRAFT")
 ASSETS = Path("modassets/assets")
@@ -157,3 +162,96 @@ def assemble(tiles: dict[tuple[int, int], Path], out: Path | str,
     meta = tile_bounds(tiles) or {}
     meta.update({"image": str(result.output), "tiles": result.tiles})
     return meta
+
+
+# -- v9: встроенные карты из PDA-архива -----------------------------------
+
+def shipped_dir() -> Path:
+    """Папка со встроенными фонами (assets/maps в корне репозитория)."""
+    return Path(__file__).resolve().parent.parent / "assets" / "maps"
+
+
+def load_shipped() -> list[dict[str, Any]]:
+    """Метаданные встроенных карт (файл game_maps.json)."""
+    path = shipped_dir() / "game_maps.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    maps = data.get("maps", []) if isinstance(data, dict) else []
+    out = []
+    for m in maps:
+        if not isinstance(m, dict) or "id" not in m or "file" not in m:
+            continue
+        m = dict(m)
+        m["path"] = str(shipped_dir() / m["file"])
+        out.append(m)
+    return out
+
+
+def _grid(meta: dict[str, Any]) -> tuple[int, int, int, int] | None:
+    try:
+        gx = (int(meta["min_x"]), int(meta["max_x"]))
+        gz = (int(meta["min_z"]), int(meta["max_z"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    if gx[1] < gx[0] or gz[1] < gz[0]:
+        return None
+    return gx[0], gx[1], gz[0], gz[1]
+
+
+def is_world(meta: dict[str, Any]) -> bool:
+    """True, если у карты мировая привязка (якоря не нужны)."""
+    return bool(meta.get("world")) and _grid(meta) is not None
+
+
+def world_to_frac(meta: dict[str, Any], x: float, z: float
+                  ) -> tuple[float, float] | None:
+    """Мировые метры -> доли 0..1 встроенного фона (None для локальных)."""
+    g = _grid(meta) if is_world(meta) else None
+    if g is None:
+        return None
+    min_x, max_x, min_z, max_z = g
+    fx = (float(x) - min_x * REGION_M) / ((max_x - min_x + 1) * REGION_M)
+    fz = (float(z) - min_z * REGION_M) / ((max_z - min_z + 1) * REGION_M)
+    return fx, fz
+
+
+def frac_to_world(meta: dict[str, Any], fx: float, fy: float
+                  ) -> tuple[float, float] | None:
+    """Доли 0..1 фона -> мировые метры (x, z). None для локальных."""
+    g = _grid(meta) if is_world(meta) else None
+    if g is None:
+        return None
+    min_x, max_x, min_z, max_z = g
+    x = min_x * REGION_M + float(fx) * (max_x - min_x + 1) * REGION_M
+    z = min_z * REGION_M + float(fy) * (max_z - min_z + 1) * REGION_M
+    return x, z
+
+
+def meters_per_pixel(meta: dict[str, Any]) -> float | None:
+    """Сколько метров в пикселе встроенного JPG (None для локальных)."""
+    g = _grid(meta) if is_world(meta) else None
+    if g is None:
+        return None
+    try:
+        w = float(meta["img_w"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if w <= 0:
+        return None
+    min_x, max_x, _min_z, _max_z = g
+    return (max_x - min_x + 1) * REGION_M / w
+
+
+def describe(meta: dict[str, Any]) -> str:
+    """Однострочное RU-описание карты для интерфейса."""
+    title = str(meta.get("title", meta.get("id", "?")))
+    if is_world(meta):
+        mpp = meters_per_pixel(meta)
+        g = _grid(meta) or (0, 0, 0, 0)
+        scale = f"{mpp:.2f} м/пиксель".replace(".", ",") if mpp else "?"
+        return (f"{title}: мировая привязка ✅ ({scale}; "
+                f"x {g[0] * REGION_M}…{(g[1] + 1) * REGION_M}, "
+                f"z {g[2] * REGION_M}…{(g[3] + 1) * REGION_M} м)")
+    return f"{title}: нужны якоря SZ_A/SZ_B 🎯 ({meta.get('note', '')})"
