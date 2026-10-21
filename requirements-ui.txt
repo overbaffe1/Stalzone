@@ -2,3 +2,5 @@
 -r requirements.txt
 customtkinter>=5.2.2
 Pillow>=10.2.0
+# Карта из файлов игры (PDA-тайлы): кнопка «🎮 Из игры»
+sc-file>=6.0

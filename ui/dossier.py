@@ -111,6 +111,46 @@ def open_dossier(app: Any, ctx: dict[str, Any], item_id: str) -> None:
     ctk.CTkButton(ntf, text="💾", width=44, command=save_note).pack(
         side="left", padx=4)
 
+    # сравнение с другим регионом (зеркало, по кнопке)
+    euf = ctk.CTkFrame(win)
+    euf.pack(fill="x", padx=10, pady=5)
+    eu_var = ctk.StringVar(value="🌍 Сравнить с EU?")
+    ctk.CTkLabel(euf, textvariable=eu_var).pack(side="left", padx=8)
+
+    def fetch_eu() -> None:
+        eu_var.set("🌍 Спрашиваю EU…")
+
+        def work() -> None:
+            try:
+                from szmarket.mirror import MirrorClient
+                recs = MirrorClient(region="eu").history_all(
+                    item_id, limit=100)
+                units = [float(r.get("price", 0) or 0)
+                         / max(int(r.get("amount", 1) or 1), 1)
+                         for r in recs if r.get("price")]
+                if not units:
+                    raise RuntimeError("EU молчит")
+                eu_med = statistics.median(units)
+                local = store.recent_sales(item_id, region, limit=500)
+                here = summarize_sales(local)["median"] if local else 0.0
+                if here > 0:
+                    diff = (eu_med - here) / here * 100
+                    txt = (f"🌍 EU: {fmt_money(eu_med)} "
+                           f"({len(units)} пр.) · у нас {fmt_money(here)} "
+                           f"({diff:+.0f}%)")
+                else:
+                    txt = (f"🌍 EU: {fmt_money(eu_med)} "
+                           f"({len(units)} пр.) · у нас нет данных")
+                win.after(0, lambda: eu_var.set(txt))
+            except Exception as e:  # noqa: BLE001
+                win.after(0, lambda: eu_var.set(f"🌍 EU: {e}"))
+
+        import threading
+        threading.Thread(target=work, daemon=True).start()
+
+    ctk.CTkButton(euf, text="🌍 EU", width=70,
+                  command=fetch_eu).pack(side="left", padx=4)
+
     box = ctk.CTkScrollableFrame(win, label_text="Рынок")
     box.pack(fill="both", expand=True, padx=10, pady=5)
 

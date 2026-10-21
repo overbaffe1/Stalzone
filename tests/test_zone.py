@@ -65,6 +65,17 @@ def test_profile_url_quotes_name():
     assert calls == ["/RU/character/by-name/Vasya%20Pupkin/profile"]
 
 
+def test_clans_and_operations_urls():
+    c = EapiClient("https://x.test", "id", "secret", region="RU")
+    seen: list = []
+    c._get = lambda path, params=None: seen.append((path, params)) or {}  # type: ignore
+    c.clans(limit=50, offset=100)
+    c.operations("Vasya")
+    assert seen[0] == ("/RU/clans", {"limit": 50, "offset": 100})
+    assert seen[1][0] == "/RU/operations/sessions"
+    assert seen[1][1]["username"] == "Vasya"
+
+
 def _hist(n: int, ordered: bool, detailed: bool) -> list[dict]:
     out = []
     for i in range(n):

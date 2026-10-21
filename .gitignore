@@ -14,3 +14,4 @@ data/maps/
 data/map_calibration.json
 data/wp_affine.json
 data/route_waypoints.cfg
+data/farm.json

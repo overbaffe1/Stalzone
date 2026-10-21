@@ -157,8 +157,19 @@ class EapiClient:
         raise EapiError(f"GET {path} failed after retries: {last_err!r}")
 
     # -- public API ------------------------------------------------------
-    def clans(self, region: str | None = None) -> Any:
-        return self._get(f"/{region or self.region}/clans")
+    def clans(self, region: str | None = None, limit: int = 100,
+                offset: int = 0) -> Any:
+        return self._get(f"/{region or self.region}/clans",
+                         {"limit": limit, "offset": offset})
+
+    def operations(self, username: str | None = None,
+                   region: str | None = None, limit: int = 20) -> Any:
+        """Operation sessions, optionally filtered by character name."""
+        return self._get(
+            f"/{region or self.region}/operations/sessions",
+            {"limit": limit, "order": "descending",
+             "username": username} if username else
+            {"limit": limit, "order": "descending"})
 
     def emission(self, region: str | None = None) -> Any:
         """Current/previous emission state (needs app token)."""

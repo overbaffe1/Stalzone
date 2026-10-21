@@ -66,6 +66,7 @@ def main() -> None:
     from szmarket.store import MarketStore
     from szmarket.zonemap import (apply_calibration, ensure_background,
                                   load_calibration, save_calibration)
+    from szmarket import gamemap as gamemod
     from szmarket import waypoints as wpmod
     from ui.dossier import open_dossier
     from ui.mapview import MapView, fmt_short
@@ -195,6 +196,8 @@ def main() -> None:
     theme_btn.pack(side="right", padx=2)
     ctk.CTkButton(top, text="🪪 Сталкер", width=100,
                   command=lambda: open_stalker()).pack(side="right", padx=2)
+    ctk.CTkButton(top, text="🏰 Кланы", width=90,
+                  command=lambda: open_clans()).pack(side="right", padx=2)
 
     # ---- поиск + фильтры --------------------------------------------------
     search_fr = ctk.CTkFrame(app)
@@ -279,6 +282,9 @@ def main() -> None:
     wpclr_btn = ctk.CTkButton(map_head, text="🧹", width=40,
                               command=lambda: clear_waypoints())
     wpclr_btn.pack(side="left", padx=2)
+    gamebg_btn = ctk.CTkButton(map_head, text="🎮 Из игры", width=100,
+                               command=lambda: open_gamemap())
+    gamebg_btn.pack(side="left", padx=4)
     hover_var = ctk.StringVar(value="")
     ctk.CTkLabel(map_head, textvariable=hover_var,
                  font=ctk.CTkFont(size=11)).pack(side="left", padx=12)
@@ -1286,7 +1292,44 @@ def main() -> None:
 
             threading.Thread(target=work, daemon=True).start()
 
+        def fetch_ops() -> None:
+            name = name_var.get().strip()
+            if not name:
+                return
+            region = region_var.get().strip()
+            res_l.configure(text="Ищу операции…")
+
+            def work() -> None:
+                try:
+                    with EAPI_LOCK:
+                        c = make_client(region, quiet=True)
+                        if not hasattr(c, "operations"):
+                            raise RuntimeError("нужен ключ API")
+                        payload = c.operations(name, region or None,
+                                               limit=10)
+                    data = (payload.get("data", [])
+                            if isinstance(payload, dict) else payload)
+                    if not data:
+                        raise RuntimeError("операций не нашлось")
+                    lines = []
+                    for s in data[:10]:
+                        end = str(s.get("endTime") or "")[:10]
+                        dur = float(s.get("sessionDurationSeconds") or 0)
+                        lines.append(
+                            f"• {s.get('map', '?')} · {end} · "
+                            f"сложность {s.get('difficulty', '?')} · "
+                            f"{dur / 60:.0f} мин · "
+                            f"награда {s.get('difficultyReward', 0)}")
+                    app.after(0, lambda: res_l.configure(
+                        text="\n".join(lines)))
+                except Exception as e:  # noqa: BLE001
+                    app.after(0, lambda: res_l.configure(text=f"Ошибка: {e}"))
+
+            threading.Thread(target=work, daemon=True).start()
+
         ctk.CTkButton(win, text="Найти", command=fetch).pack(pady=4)
+        ctk.CTkButton(win, text="📜 Операции",
+                      command=fetch_ops).pack(pady=4)
         ent.bind("<Return>", lambda _e: fetch())
 
     def toggle_theme() -> None:  # главный поток
@@ -1354,8 +1397,335 @@ def main() -> None:
             app.clipboard_append("\n".join(lines))
             set_status("Список покупок скопирован.")
 
-        ctk.CTkButton(win, text="📋 Копировать список",
-                      command=copy_list).pack(pady=8)
+        def copy_discord() -> None:
+            total = _fmt_money(float(tr.get("total_profit", 0) or 0))
+            head = (f"🧭 **Рейс SZMarket** · профит **{total}** · "
+                    f"старт: {start_var.get()}")
+            body = "\n".join(lines)
+            app.clipboard_clear()
+            app.clipboard_append(f"{head}\n```\n{body}\n```")
+            set_status("Рейс скопирован для Discord.")
+
+        brow = ctk.CTkFrame(win)
+        brow.pack(pady=8)
+        ctk.CTkButton(brow, text="📋 Копировать список",
+                      command=copy_list).pack(side="left", padx=4)
+        ctk.CTkButton(brow, text="📤 В Discord",
+                      command=copy_discord).pack(side="left", padx=4)
+
+    def open_gamemap() -> None:  # главный поток
+        from tkinter import filedialog
+
+        win = ctk.CTkToplevel(app)
+        win.title("Карта из файлов игры")
+        win.geometry("520x430")
+        win.transient(app)
+        ctk.CTkLabel(
+            win, justify="left",
+            text="Соберу фон карты из тайлов твоей игры\n"
+                 "(modassets/assets/pda). Нужен пакет sc-file:\n"
+                 "pip install sc-file").pack(padx=12, pady=(10, 4))
+        hints = gamemod.default_hints()
+        root_var = ctk.StringVar(value=str(hints[0]) if hints else "")
+        row = ctk.CTkFrame(win)
+        row.pack(fill="x", padx=12, pady=4)
+        ctk.CTkEntry(row, textvariable=root_var, width=360).pack(
+            side="left", padx=4)
+        ctk.CTkButton(row, text="Выбрать…", width=100,
+                      command=lambda: browse()).pack(side="left", padx=4)
+        maps_var = ctk.StringVar(value="")
+        map_menu = ctk.CTkOptionMenu(win, variable=maps_var, values=[],
+                                     width=260)
+        map_menu.pack(padx=12, pady=4)
+        status_l = ctk.CTkLabel(win, text="", wraplength=480,
+                                justify="left")
+        status_l.pack(padx=12, pady=6)
+
+        def browse() -> None:
+            init = root_var.get().strip() or (
+                str(hints[0]) if hints else "")
+            d = filedialog.askdirectory(title="Папка игры (STALZONE)",
+                                        initialdir=init or None)
+            if d:
+                root_var.set(d)
+                refresh_maps()
+
+        def refresh_maps() -> None:
+            root = gamemod.find_game_root(root_var.get().strip() or None)
+            if root is None:
+                status_l.configure(
+                    text="Не вижу modassets/assets — выбери папку игры.")
+                map_menu.configure(values=[])
+                return
+            root_var.set(str(root))
+            names = gamemod.list_maps(root, "ru")
+            if not names:
+                status_l.configure(text="PDA-карты не найдены в pda/.")
+                map_menu.configure(values=[])
+                return
+            map_menu.configure(values=names)
+            maps_var.set(names[0])
+            tiles = gamemod.collect_map_tiles(root, names[0], "ru")
+            b = gamemod.tile_bounds(tiles)
+            status_l.configure(
+                text=f"Карт: {len(names)}. «{names[0]}»: "
+                     f"{b['count'] if b else 0} тайлов." if b else
+                f"Карт: {len(names)}. В «{names[0]}» тайлов нет.")
+
+        def build() -> None:
+            root = root_var.get().strip()
+            name = maps_var.get().strip()
+            if not root or not name:
+                return
+            gamebg_btn.configure(text="⏳ Сборка…")
+            status_l.configure(text="Сканирую тайлы…")
+
+            def work() -> None:
+                try:
+                    tiles = gamemod.collect_map_tiles(root, name, "ru")
+                    if not tiles:
+                        raise RuntimeError("тайлы не найдены")
+                    safe = "".join(c if c.isalnum() or c in "-_"
+                                   else "_" for c in name)
+                    out = Path(f"data/maps/game_{safe}.jpg")
+                    app.after(0, lambda: status_l.configure(
+                        text=f"Собираю {len(tiles)} тайлов… "
+                             f"(нужен sc-file)"))
+                    meta = gamemod.assemble(tiles, out)
+                    meta.update({"map": name, "root": root})
+                    Path(f"data/maps/game_{safe}.json").write_text(
+                        json.dumps(meta, ensure_ascii=False, indent=1),
+                        encoding="utf-8")
+                    app.after(0, lambda: use(meta))
+                except Exception as e:  # noqa: BLE001
+                    app.after(0, lambda: status_l.configure(
+                        text=f"Не собралось: {e}"))
+                    app.after(0, lambda: gamebg_btn.configure(
+                        text="🎮 Из игры"))
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def use(meta: dict) -> None:
+            map_state["bg"] = True
+            map_state["bg_path"] = meta["image"]
+            map_view.set_background(meta["image"])
+            mapbg_btn.configure(text="🗺 Схема")
+            gamebg_btn.configure(text="🎮 Из игры")
+            b = meta
+            set_status(f"Фон из игры: {b.get('tiles', '?')} тайлов "
+                       f"(x {b.get('min_x')}…{b.get('max_x')}, "
+                       f"z {b.get('min_z')}…{b.get('max_z')}). "
+                       f"Откалибруй маркеры через 🎯.")
+            win.destroy()
+
+        ctk.CTkButton(win, text="Собрать и показать",
+                      command=build).pack(pady=8)
+        refresh_maps()
+
+    def open_clans() -> None:  # главный поток
+        win = ctk.CTkToplevel(app)
+        win.title("Кланы Зоны")
+        win.geometry("560x620")
+        win.transient(app)
+        ctk.CTkLabel(win, text="Поиск по названию/тегу:").pack(padx=12,
+                                                               pady=(8, 0))
+        q_var = ctk.StringVar()
+        ctk.CTkEntry(win, textvariable=q_var, width=300,
+                     placeholder_text="Долг, Свобода, [DD]…").pack(padx=12,
+                                                                  pady=4)
+        box = ctk.CTkScrollableFrame(win, label_text="Топ кланов")
+        box.pack(fill="both", expand=True, padx=10, pady=6)
+        clans: list[dict] = []
+
+        def render() -> None:
+            for w in box.winfo_children():
+                w.destroy()
+            q = q_var.get().strip().lower()
+            shown = [c for c in clans
+                     if not q or q in str(c.get("name", "")).lower()
+                     or q in str(c.get("tag", "")).lower()][:60]
+            if not shown:
+                ctk.CTkLabel(box, text="Ничего не нашлось.").pack(padx=8,
+                                                                  pady=8)
+                return
+            for c in shown:
+                ally = ALLIANCE_RU.get(str(c.get("alliance")),
+                                       c.get("alliance") or "?")
+                txt = (f"[{c.get('tag', '?')}] {c.get('name', '?')} · "
+                       f"ур. {c.get('level', '?')} · "
+                       f"бойцов: {c.get('memberCount', '?')} · {ally}\n"
+                       f"Лидер: {c.get('leader', '?')}")
+                fr = ctk.CTkFrame(box)
+                fr.pack(fill="x", padx=6, pady=3)
+                ctk.CTkLabel(fr, text=txt, anchor="w", justify="left"
+                             ).pack(side="left", padx=8, pady=4)
+                desc = str(c.get("description") or "")
+
+                def show_d(d=desc, n=c.get("name", "?")) -> None:
+                    set_status(f"{n}: {d[:180] or 'без описания'}")
+                ctk.CTkButton(fr, text="📜", width=40,
+                              command=show_d).pack(side="right", padx=6)
+
+        q_var.trace_add("write", lambda *_a: render())
+
+        def fetch() -> None:
+            region = region_var.get().strip()
+            ctk.CTkLabel(box, text="Загружаю…").pack(padx=8, pady=8)
+
+            def work() -> None:
+                try:
+                    with EAPI_LOCK:
+                        c = make_client(region, quiet=True)
+                        if not hasattr(c, "clans"):
+                            raise RuntimeError("нужен ключ API")
+                        allc: list[dict] = []
+                        seen_total = 0
+                        for page in range(3):
+                            payload = c.clans(region or None,
+                                              limit=100, offset=page * 100)
+                            data = (payload.get("data", [])
+                                    if isinstance(payload, dict)
+                                    else payload)
+                            if not data:
+                                break
+                            allc.extend(data)
+                            seen_total = (payload.get("totalClans", 0)
+                                          if isinstance(payload, dict)
+                                          else len(allc))
+                            if len(allc) >= (seen_total or 0) > 0:
+                                break
+                    clans.clear()
+                    clans.extend(allc)
+                    app.after(0, render)
+                    app.after(0, lambda: set_status(
+                        f"Кланов загружено: {len(allc)}"))
+                except Exception as e:  # noqa: BLE001
+                    app.after(0, lambda: set_status(f"Кланы: {e}"))
+
+            threading.Thread(target=work, daemon=True).start()
+
+        fetch()
+
+    farm_state: dict[str, Any] = {"t0": 0.0, "run": False, "acc": 0.0}
+
+    def _farm_log() -> list[dict]:
+        try:
+            d = json.loads(Path("data/farm.json").read_text(
+                encoding="utf-8"))
+            return d if isinstance(d, list) else []
+        except (OSError, ValueError):
+            return []
+
+    def _farm_save(entry: dict) -> None:
+        Path("data").mkdir(exist_ok=True)
+        log = _farm_log() + [entry]
+        Path("data/farm.json").write_text(
+            json.dumps(log[-200:], ensure_ascii=False, indent=1),
+            encoding="utf-8")
+
+    def open_farm() -> None:  # главный поток
+        import time as _t
+
+        win = ctk.CTkToplevel(app)
+        win.title("Таймер фарма")
+        win.geometry("440x520")
+        win.transient(app)
+        time_var = ctk.StringVar(value="00:00:00")
+        ctk.CTkLabel(win, textvariable=time_var,
+                     font=ctk.CTkFont(size=34, weight="bold")).pack(pady=10)
+        rate_var = ctk.StringVar(value="₽/час: —")
+        ctk.CTkLabel(win, textvariable=rate_var, font=title_font
+                     ).pack(pady=2)
+        ctk.CTkLabel(win, text="Нафармил (₽):").pack(pady=(8, 0))
+        loot_var = ctk.StringVar(value="")
+        ctk.CTkEntry(win, textvariable=loot_var, width=200,
+                     placeholder_text="например 150000").pack(pady=4)
+        ctk.CTkLabel(win, text="Где / что:").pack(pady=(4, 0))
+        spot_var = ctk.StringVar(value="")
+        ctk.CTkEntry(win, textvariable=spot_var, width=200,
+                     placeholder_text="Болота, арты…").pack(pady=4)
+
+        def elapsed() -> float:
+            e = farm_state["acc"]
+            if farm_state["run"]:
+                e += _t.monotonic() - farm_state["t0"]
+            return e
+
+        def tick() -> None:
+            if not win.winfo_exists():
+                return
+            e = elapsed()
+            h, m, s = int(e // 3600), int(e % 3600 // 60), int(e % 60)
+            time_var.set(f"{h:02d}:{m:02d}:{s:02d}")
+            try:
+                loot = float(loot_var.get().strip().replace(" ", "")
+                             or 0)
+            except ValueError:
+                loot = 0.0
+            rate_var.set("₽/час: " + (_fmt_money(loot / (e / 3600))
+                                     if e >= 60 and loot > 0 else "—"))
+            win.after(1000, tick)
+
+        def start_stop() -> None:
+            if farm_state["run"]:
+                farm_state["acc"] += _t.monotonic() - farm_state["t0"]
+                farm_state["run"] = False
+                ss_btn.configure(text="▶ Старт")
+            else:
+                farm_state["t0"] = _t.monotonic()
+                farm_state["run"] = True
+                ss_btn.configure(text="⏸ Стоп")
+
+        def reset() -> None:
+            farm_state.update(t0=0.0, run=False, acc=0.0)
+            ss_btn.configure(text="▶ Старт")
+
+        def finish() -> None:
+            e = elapsed()
+            if e < 60:
+                set_status("Фарм короче минуты — не записываю.")
+                return
+            try:
+                loot = float(loot_var.get().strip().replace(" ", "")
+                             or 0)
+            except ValueError:
+                loot = 0.0
+            _farm_save({"date": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "minutes": round(e / 60, 1), "loot": loot,
+                        "per_hour": round(loot / (e / 3600), 0),
+                        "spot": spot_var.get().strip()})
+            set_status(f"Фарм записан: {e / 60:.0f} мин, "
+                       f"{_fmt_money(loot)}.")
+            reset()
+            hist()
+
+        def hist() -> None:
+            for w in hist_box.winfo_children():
+                w.destroy()
+            for en in reversed(_farm_log()[-8:]):
+                ctk.CTkLabel(
+                    hist_box,
+                    text=f"{en.get('date', '?')} · "
+                         f"{en.get('minutes', '?')} мин · "
+                         f"{_fmt_money(float(en.get('loot', 0)))} · "
+                         f"{_fmt_money(float(en.get('per_hour', 0)))}/ч · "
+                         f"{en.get('spot', '')}",
+                    anchor="w").pack(fill="x", padx=6, pady=1)
+
+        btns_row = ctk.CTkFrame(win)
+        btns_row.pack(pady=8)
+        ss_btn = ctk.CTkButton(btns_row, text="▶ Старт", width=100,
+                               command=start_stop)
+        ss_btn.pack(side="left", padx=4)
+        ctk.CTkButton(btns_row, text="Сброс", width=80,
+                      command=reset).pack(side="left", padx=4)
+        ctk.CTkButton(btns_row, text="✅ Готово, записать", width=150,
+                      command=finish).pack(side="left", padx=4)
+        hist_box = ctk.CTkScrollableFrame(win, label_text="Последние выходы",
+                                          height=140)
+        hist_box.pack(fill="both", expand=True, padx=10, pady=6)
+        hist()
+        tick()
 
     def open_trip() -> None:  # главный поток
         if not trip:
@@ -1384,6 +1754,8 @@ def main() -> None:
                   command=open_shopping).pack(side="left", padx=5)
     wd_btn = ctk.CTkButton(btns, text="🔔 Сторож", command=toggle_watchdog)
     wd_btn.pack(side="left", padx=5)
+    ctk.CTkButton(btns, text="⏱ Фарм",
+                  command=open_farm).pack(side="left", padx=5)
     ctk.CTkButton(btns, text="📋 Копировать",
                   command=copy_results).pack(side="left", padx=5)
     ctk.CTkButton(btns, text="Очистить",
@@ -1431,7 +1803,9 @@ def main() -> None:
                  "«📍 В игру» переносит его в игру метками\n"
                  "6) «📋» в списке — досье предмета, 🎯 — цель для «🔔 Сторожа»\n"
                  "7) В шапке: ☢ выбросы Зоны · «🪪 Сталкер» — досье игрока · "
-                 "«🛒 Список» — что докупить для рейса")},
+                 "«🛒 Список» — что докупить для рейса\n"
+                 "8) «🎮 Из игры» — фон карты из файлов твоей игры · "
+                 "«🏰 Кланы» — топ кланов · «⏱ Фарм» — ₽/час")},
         {"title": f"📦 Каталог: {len(cat)} предметов · рецептов: {len(recipes)}",
          "sub": ("Названия и иконки — из официальной базы EXBO. "
                  "Иконки докачиваются в фоне (статус справа вверху).")},
