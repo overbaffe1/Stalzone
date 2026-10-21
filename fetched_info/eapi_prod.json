@@ -14,7 +14,7 @@
         "startPrice",
         "startTime"
       ],
-      "lots_sample": "[{\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 1400000, \"startTime\": \"2026-10-21T16:05:13Z\", \"endTime\": \"2026-10-22T04:05:13Z\", \"additional\": {}}, {\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 1350000, \"startTime\": \"2026-10-21T10:21:39Z\", \"endTime\": \"2026-10-23T10:21:39Z\", \"additional\": {}}]",
+      "lots_sample": "[{\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 1299000, \"startTime\": \"2026-10-21T17:04:01Z\", \"endTime\": \"2026-10-22T05:04:01Z\", \"additional\": {}}, {\"itemId\": \"y1q9\", \"amount\": 1, \"startPrice\": 0, \"buyoutPrice\": 1339999, \"startTime\": \"2026-10-21T16:48:48Z\", \"endTime\": \"2026-10-23T16:48:48Z\", \"additional\": {}}]",
       "history_ok": true,
       "history_count": 20,
       "history_total": 7703,
@@ -42,14 +42,14 @@
       "lots_sample": "[{\"itemId\": \"g4lk0\", \"amount\": 5, \"startPrice\": 1, \"currentPrice\": 1, \"buyoutPrice\": 280, \"startTime\": \"2026-10-21T16:05:44Z\", \"endTime\": \"2026-10-23T16:05:44Z\", \"additional\": {}}, {\"itemId\": \"g4lk0\", \"amount\": 5, \"startPrice\": 1, \"buyoutPrice\": 280, \"startTime\": \"2026-10-21T16:05:38Z\", \"endTime\": \"2026-10-23T16:05:38Z\", \"additional\": {}}]",
       "history_ok": true,
       "history_count": 20,
-      "history_total": 516611,
+      "history_total": 516613,
       "history_keys": [
         "additional",
         "amount",
         "price",
         "time"
       ],
-      "history_sample": "[{\"amount\": 5, \"price\": 177, \"time\": \"2026-10-21T16:36:05Z\", \"additional\": {}}, {\"amount\": 5, \"price\": 177, \"time\": \"2026-10-21T16:36:03Z\", \"additional\": {}}, {\"amount\": 5, \"price\": 177, \"time\": \"2026-10-21T16:36:01Z\", \"additional\": {}}]"
+      "history_sample": "[{\"amount\": 5, \"price\": 177, \"time\": \"2026-10-21T17:09:02Z\", \"additional\": {}}, {\"amount\": 5, \"price\": 177, \"time\": \"2026-10-21T17:08:59Z\", \"additional\": {}}, {\"amount\": 5, \"price\": 177, \"time\": \"2026-10-21T16:36:05Z\", \"additional\": {}}]"
     },
     "96430": {
       "lots_ok": true,
